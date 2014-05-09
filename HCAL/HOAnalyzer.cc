@@ -806,6 +806,8 @@ HOAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
        const reco::TrackRefVector & jetTracks = jet.associatedTracks();
 
        double dr = 9999;
+       if(genjet)dr = reco::deltaR(jet.eta(), jet.phi(), genjet->eta(), genjet->phi());       
+
        if(il==0){
 	 if(genjet){
 	   refpt   [nref] = genjet->pt();
@@ -819,13 +821,13 @@ HOAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	   refemet[nref]  = refemen[nref]/cosh(genjet->eta());
 	   refhadet[nref] = refhaden[nref]/cosh(genjet->eta());
 
-	   dr = reco::deltaR(jet.eta(), jet.phi(), genjet->eta(), genjet->phi());
+
 
 	   //std::cout<<"\t refet  : " << refet[nref] << "\t ref emEt : "<< refemet[nref] << "\t ref hadEt : "<< refhadet[nref] << std::endl;
 	   nref++;
 	 }
        }
-       //if(dr < 0.3)continue;
+       //if(dr > 0.3)continue;
 
        //int ipass=0;
        float jetemf=-999;
