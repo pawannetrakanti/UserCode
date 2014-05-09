@@ -117,9 +117,9 @@ const int nchnmx = 10;
 //
 // static data member definitions
 //
-static const int nphimx=72;
-static const int njetmx =50;
-static const int  homx = 1000;
+static const int nphimx = 72;
+static const int njetmx = 50;
+static const int  hcmx  = 1000;
 static const int  vtmax = 20;
 
 const int netahotower=15;
@@ -157,9 +157,9 @@ class HOAnalyzer : public edm::EDAnalyzer {
   bool isTrigger;
   bool isRECO;
   bool isMC;
-  bool m_digiInput;
-  std::string hoLabel_;
-  std::string hoLabel2_;
+  //bool m_digiInput;
+  //std::string hoLabel_;
+  //std::string hoLabel2_;
   edm::InputTag towerLabel_;
 
 
@@ -253,7 +253,6 @@ class HOAnalyzer : public edm::EDAnalyzer {
   int   calotowieta [njetmx][500];
   int   calotowiphi [njetmx][500];
 
-
   int ncalotow      [njetmx];
   float sumCaloE    [njetmx];
   float sumCaloEmE  [njetmx];
@@ -326,17 +325,28 @@ class HOAnalyzer : public edm::EDAnalyzer {
   float pfjet_candeta[njetmx][500];
   float pfjet_candphi[njetmx][500];
 
+  int nhb;
+  float hb_en [hcmx];
+  float hb_et [hcmx];
+  float hb_ti [hcmx];
+  int hb_ieta [hcmx];
+  int hb_iphi [hcmx];
+  int hb_depth[hcmx];
+  int hb_ring [hcmx];
+  float hb_eta[hcmx];
+  float hb_phi[hcmx];
+
 
   int nho;
-  float hoen[homx];
-  float hoet[homx];
-  float hoti[homx];
-  int hoieta[homx];
-  int hoiphi[homx];
-  //int hodepth[homx];
-  int horing[homx];
-  float hoeta[homx];
-  float hophi[homx];
+  float ho_en [hcmx];
+  float ho_et [hcmx];
+  float ho_ti [hcmx];
+  int ho_ieta [hcmx];
+  int ho_iphi [hcmx];
+  int ho_depth[hcmx];
+  int ho_ring [hcmx];
+  float ho_eta[hcmx];
+  float ho_phi[hcmx];
 
   int   nref;
   float refpt  [njetmx];
@@ -372,8 +382,8 @@ HOAnalyzer::HOAnalyzer(const edm::ParameterSet& iConfig)
   isRECO     = iConfig.getUntrackedParameter<bool>("RECO", false);
   isMC       = iConfig.getUntrackedParameter<bool>("MonteCarlo", true);
 
-  hoLabel_    = iConfig.getUntrackedParameter<string>("hoInput");
-  hoLabel2_   = iConfig.getUntrackedParameter<string>("hoInput2");
+  //hoLabel_    = iConfig.getUntrackedParameter<string>("hoInput");
+  //hoLabel2_   = iConfig.getUntrackedParameter<string>("hoInput2");
   towerLabel_ = iConfig.getParameter<edm::InputTag>("towerInput");
 
 
@@ -436,6 +446,7 @@ HOAnalyzer::HOAnalyzer(const edm::ParameterSet& iConfig)
   T1->Branch("calotowiphi",calotowiphi,"calotowiphi[ncalojets][500]/I");	     
   T1->Branch("calotoweta",calotoweta,"calotoweta[ncalojets][500]/F");	     
   T1->Branch("calotowphi",calotowphi,"calotowphi[ncalojets][500]/F");	     
+
 
   T1->Branch("sumCaloE",sumCaloE,"sumCaloE[ncalojets]/F");	     
   T1->Branch("sumCaloEmE",sumCaloEmE,"sumCaloEmE[ncalojets]/F");	     
@@ -511,22 +522,29 @@ HOAnalyzer::HOAnalyzer(const edm::ParameterSet& iConfig)
   T1->Branch("pfjet_candpt" ,    pfjet_candpt ,"pfjet_candpt [npfjets][500]/F");
   T1->Branch("pfjet_candeta",    pfjet_candeta,"pfjet_candeta[npfjets][500]/F");
   T1->Branch("pfjet_candphi",    pfjet_candphi,"pfjet_candphi[npfjets][500]/F");
-  
 
-
-
+  T1->Branch("nhb",&nhb,"nhb/I");	   
+  T1->Branch("hb_en"   ,hb_en    ,"hb_en[nhb]/F");	   
+  T1->Branch("hb_et"   ,hb_et    ,"hb_et[nhb]/F");	   
+  T1->Branch("hb_ti"   ,hb_ti    ,"hb_ti[nhb]/F");	   
+  T1->Branch("hb_ieta" ,hb_ieta  ,"hb_ieta[nhb]/I");	   
+  T1->Branch("hb_iphi" ,hb_iphi  ,"hb_iphi[nhb]/I");	   
+  T1->Branch("hb_depth",hb_depth ,"hb_depth[nhb]/I");	   
+  T1->Branch("hb_ring" ,hb_ring  ,"hb_ring[nhb]/I");	   
+  T1->Branch("hb_eta"  ,hb_eta   ,"hb_eta[nhb]/F");	   
+  T1->Branch("hb_phi"  ,hb_phi   ,"hb_phi[nhb]/F");	   
 
 
   T1->Branch("nho",&nho,"nho/I");	   
-  T1->Branch("hoen",hoen,"hoen[nho]/F");	   
-  T1->Branch("hoet",hoet,"hoet[nho]/F");	   
-  T1->Branch("hoti",hoti,"hoti[nho]/F");	   
-  T1->Branch("hoieta",hoieta,"hoieta[nho]/I");	   
-  T1->Branch("hoiphi",hoiphi,"hoiphi[nho]/I");	   
-  //T1->Branch("hodepth",hodepth,"hodepth[nho]/I");	   
-  T1->Branch("horing",horing,"horing[nho]/I");	   
-  T1->Branch("hoeta",hoeta,"hoeta[nho]/F");	   
-  T1->Branch("hophi",hophi,"hophi[nho]/F");	   
+  T1->Branch("ho_en",ho_en,"ho_en[nho]/F");	   
+  T1->Branch("ho_et",ho_et,"ho_et[nho]/F");	   
+  T1->Branch("ho_ti",ho_ti,"ho_ti[nho]/F");	   
+  T1->Branch("ho_ieta",ho_ieta,"ho_ieta[nho]/I");	   
+  T1->Branch("ho_iphi",ho_iphi,"ho_iphi[nho]/I");	   
+  T1->Branch("ho_depth",ho_depth,"ho_depth[nho]/I");	   
+  T1->Branch("ho_ring",ho_ring,"ho_ring[nho]/I");	   
+  T1->Branch("ho_eta",ho_eta,"ho_eta[nho]/F");	   
+  T1->Branch("ho_phi",ho_phi,"ho_phi[nho]/F");	   
   
   if(isMC){
     T1->Branch("qscale", &qscale, "qscale/F");
@@ -803,12 +821,11 @@ HOAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
 	   dr = reco::deltaR(jet.eta(), jet.phi(), genjet->eta(), genjet->phi());
 
-	   std::cout<<"\t refet  : " << refet[nref] << "\t ref emEt : "<< refemet[nref] << "\t ref hadEt : "<< refhadet[nref] << std::endl;
+	   //std::cout<<"\t refet  : " << refet[nref] << "\t ref emEt : "<< refemet[nref] << "\t ref hadEt : "<< refhadet[nref] << std::endl;
 	   nref++;
 	 }
        }
-
-       if(dr < 0.3)continue;
+       //if(dr < 0.3)continue;
 
        //int ipass=0;
        float jetemf=-999;
@@ -935,6 +952,7 @@ HOAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	   calotowphi  [ncalojets][ncalotow[ncalojets]] = tower->phi();
 	   calotowieta [ncalojets][ncalotow[ncalojets]] = id.ieta();
 	   calotowiphi [ncalojets][ncalotow[ncalojets]] = id.iphi();
+
 	   ncalotow[ncalojets]++;
 
 	   //float aeta = tower->eta();
@@ -1139,8 +1157,44 @@ HOAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
    iSetup.get<CaloGeometryRecord>().get(pG);
    caloGeom = pG.product();
 
+   //! HBHE RecHit Collection
+   edm::Handle<HBHERecHitCollection> hbheht;
+   iEvent.getByLabel("hbhereco","",hbheht);
+   nhb=0;
+   if (hbheht.isValid()) {
+     if ((*hbheht).size()>0) {
+       for (HBHERecHitCollection::const_iterator hbheit=(*hbheht).begin(); hbheit!=(*hbheht).end(); ++hbheit){
+
+	 HcalDetId id  = (*hbheit).id();
+	 if( id.subdet() != HcalBarrel ) continue;
+
+	 float henr    = (*hbheit).energy();
+	 float htime   = (*hbheit).time();
+	 int hieta     = id.ieta();
+	 int hiphi     = id.iphi();
+	 int hdepth    = id.depth();
+
+	 GlobalPoint pos = caloGeom->getPosition(hbheit->detid());
+	 math::XYZPoint posV(pos.x(), pos.y(), pos.z());
+	 
+	 hb_en  [nhb]  = henr;
+	 hb_et  [nhb]  = henr*sin(posV.theta());
+	 hb_ti  [nhb]  = htime;
+	 hb_ieta[nhb]  = hieta; 
+	 hb_iphi[nhb]  = hiphi;
+	 hb_depth[nhb] = hdepth;
+	 hb_ring[nhb]  = getring(hieta);
+	 hb_eta [nhb]  = pos.eta();
+	 hb_phi [nhb]  = pos.phi();
+	 nhb++;
+       }
+     }
+   }
+
+   //! HO Rechit Collection
    edm::Handle<HORecHitCollection> hoht;
-   iEvent.getByLabel(hoLabel_,hoLabel2_,hoht);
+   iEvent.getByLabel("horeco","",hoht);
+   //iEvent.getByLabel(hoLabel_,hoLabel2_,hoht);
 
    nho=0;
    if (hoht.isValid()) {
@@ -1152,7 +1206,7 @@ HOAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	 float hotime  = (*hoit).time();
 	 int ietaho    = id.ieta();
 	 int iphiho    = id.iphi();
-	 //int idepth   = id.depth();
+	 int idepth    = id.depth();
 
 	 GlobalPoint pos = caloGeom->getPosition(hoit->detid());
 
@@ -1163,17 +1217,16 @@ HOAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	 //math::XYZPoint posV(pos.x() - bestVtxX, pos.y() - bestVtxY, pos.z() - bestVtxZ);
 	 math::XYZPoint posV(pos.x(), pos.y(), pos.z());
 
-	 hoen  [nho] = hoenr;
-	 hoet  [nho] = hoenr*sin(posV.theta());
-	 hoti  [nho] = hotime;
-	 hoieta[nho] = ietaho; 
-	 hoiphi[nho] = iphiho;
-	 //hodepth[nho] = idepth;
-	 horing[nho] = getring(ietaho);
-	 hoeta [nho] = pos.eta();
-	 hophi [nho] = pos.phi();
+	 ho_en  [nho] = hoenr;
+	 ho_et  [nho] = hoenr*sin(posV.theta());
+	 ho_ti  [nho] = hotime;
+	 ho_ieta[nho] = ietaho; 
+	 ho_iphi[nho] = iphiho;
+	 ho_depth[nho] = idepth;
+	 ho_ring[nho] = getring(ietaho);
+	 ho_eta [nho] = pos.eta();
+	 ho_phi [nho] = pos.phi();
 	 nho++;
-	 
        }
      }
    }

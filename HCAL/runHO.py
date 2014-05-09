@@ -1,9 +1,9 @@
 import FWCore.ParameterSet.VarParsing as VarParsing
 
 ivars = VarParsing.VarParsing('python')
-ivars.inputFiles = 'file:00A8FBA5-41E1-E111-934D-0025901D4C3E.root'
-#ivars.inputFiles = 'file:./RECO/RECO_3000_3500_8TeV_DIGIRAWRECO_1.root'
-ivars.outputFile = './Output_hoanalyzer_AOD.root'
+#ivars.inputFiles = 'file:00A8FBA5-41E1-E111-934D-0025901D4C3E.root'
+ivars.inputFiles = 'file:./RECO/RECO_3000_3500_8TeV_DIGIRAWRECO_1.root'
+ivars.outputFile = './Output_hoanalyzer.root'
 ivars.parseArguments()
 
 
@@ -192,7 +192,6 @@ process.ak5CalopatJets = patJets.clone(jetSource = cms.InputTag("ak5CaloJets"),
                                        genJetMatch = cms.InputTag("ak5CaloGenMatchJets"),
                                        
                                        jetIDMap = cms.InputTag("ak5CaloJetID"),
-#                                       jetIDMap = cms.InputTag("ak5JetID"),                                       
 
                                        addJetCorrFactors    = cms.bool(True),
                                        jetCorrFactorsSource = cms.VInputTag(cms.InputTag("ak5CaloJetCorrFactors") ),
@@ -247,6 +246,7 @@ process.ak5PFpatJets = patJets.clone(jetSource = cms.InputTag("ak5PFJets"),
 
 
 process.ak5CalopatJetSequence = cms.Sequence(process.ak5CaloJetCorrFactors
+                                             * process.ak5JetTracksAssociatorAtVertex
                                              * process.ak5CaloJetCharge
                                              * process.ak5CaloPartonMatch
                                              * process.ak5CaloGenMatchJets
@@ -256,7 +256,7 @@ process.ak5CalopatJetSequence = cms.Sequence(process.ak5CaloJetCorrFactors
 )                                             
 
 process.ak5PFpatJetSequence = cms.Sequence(process.ak5PFJetCorrFactors
-                                           * process.ak5PFJetTracksAssociatorAtVertex
+                                           * process.ak5JetTracksAssociatorAtVertexPF
                                            * process.ak5PFJetCharge
                                            * process.ak5PFPartonMatch
                                            * process.ak5PFGenMatchJets
@@ -270,8 +270,6 @@ process.hotower = cms.EDAnalyzer("HOAnalyzer",
                                  HistFill = cms.untracked.bool(True),
                                  Trigger = cms.untracked.bool(False),
                                  RECO = cms.untracked.bool(True),
-                                 hoInput = cms.untracked.string('horeco'),
-                                 hoInput2 = cms.untracked.string(''),
                                  MonteCarlo =  cms.untracked.bool(True), 
                                  towerInput = cms.InputTag('towerMaker'),
                                  jetTags = cms.VInputTag(cms.InputTag('ak5CalopatJets'),
@@ -286,10 +284,7 @@ process.TFileService = cms.Service("TFileService",
 
 process.p = cms.Path(process.kt6PFJets
                      * process.ak5GenJetsSequence
-                     * process.ak5PFJets
-                     * process.ak5JetTracksAssociatorAtVertex
                      * process.ak5CalopatJetSequence
-                     * process.ak5JetTracksAssociatorAtVertexPF
                      * process.ak5PFpatJetSequence
                      * process.hotower
 )
