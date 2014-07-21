@@ -85,6 +85,13 @@
 #include "DataFormats/Candidate/interface/CandidateFwd.h"
 #include "FWCore/Framework/interface/GenericHandle.h"
 
+#include "JetMETCorrections/Objects/interface/JetCorrector.h"
+#include "JetMETCorrections/Objects/interface/JetCorrectionsRecord.h"
+
+#include "DataFormats/Math/interface/LorentzVector.h"
+#include "DataFormats/Math/interface/Vector3D.h"
+#include "Math/GenVector/VectorUtil.h"
+#include "Math/GenVector/PxPyPzE4D.h"
 
 
 #include "TFile.h"
@@ -226,7 +233,8 @@ class HOAnalyzer : public edm::EDAnalyzer {
   //float bestVtxX, bestVtxY, bestVtxZ;
 
   int ncalojets;
-  //int calojet_cons[njetmx];
+  int  calojet_mgen [njetmx];	 
+  int   calojet_cons[njetmx];
   float calojet_uce [njetmx], calojet_e   [njetmx], calojet_et [njetmx], calojet_pt[njetmx], calojet_ucpt[njetmx];
   float calojet_eta [njetmx], calojet_phi [njetmx];
   int   calojet_ieta[njetmx], calojet_iphi[njetmx];
@@ -239,6 +247,7 @@ class HOAnalyzer : public edm::EDAnalyzer {
   //float calojet_hadenhe[njetmx];
   //float calojet_hadenhf[njetmx];
   float calojet_hadenho[njetmx];
+  float calojet_emeneb[njetmx];
   
   float calotowE    [njetmx][500];
   float calotowHadE [njetmx][500];
@@ -253,7 +262,7 @@ class HOAnalyzer : public edm::EDAnalyzer {
   int   calotowieta [njetmx][500];
   int   calotowiphi [njetmx][500];
 
-  int ncalotow      [njetmx];
+  //int ncalotow      [njetmx];
   float sumCaloE    [njetmx];
   float sumCaloEmE  [njetmx];
   float sumCaloHadE [njetmx];
@@ -264,27 +273,30 @@ class HOAnalyzer : public edm::EDAnalyzer {
   float sumCaloHoEt [njetmx];
 
   int calojet_ntrks           [njetmx];
-  int calojet_trkqual         [njetmx][500];
-  float  calojet_trkpt        [njetmx][500];
-  float  calojet_trketa       [njetmx][500];
-  float  calojet_trkphi       [njetmx][500];
-  float  calojet_trkPtError   [njetmx][500];
-  int calojet_trkCharge       [njetmx][500];
-  int calojet_trkNHit         [njetmx][500];
-  float calojet_trkDxy        [njetmx][500];
-  float calojet_trkDxyError   [njetmx][500];
-  float calojet_trkDz         [njetmx][500];
-  float calojet_trkDzError    [njetmx][500];
-  float calojet_trkChi2       [njetmx][500];
-  int   calojet_trkNdof       [njetmx][500];
-  float calojet_trkVx         [njetmx][500];
-  float calojet_trkVy         [njetmx][500];
-  float calojet_trkVz         [njetmx][500];
-  float calojet_trkDxyBS      [njetmx][500];
-  float calojet_trkDxyErrorBS [njetmx][500];
+  int calojet_trkqual         [njetmx][200];
+  float  calojet_trkpt        [njetmx][200];
+  float  calojet_trketa       [njetmx][200];
+  float  calojet_trkphi       [njetmx][200];
+  float  calojet_trkPtError   [njetmx][200];
+  int calojet_trkCharge       [njetmx][200];
+  int calojet_trkNHit         [njetmx][200];
+  float calojet_trkDxy        [njetmx][200];
+  float calojet_trkDxyError   [njetmx][200];
+  float calojet_trkDz         [njetmx][200];
+  float calojet_trkDzError    [njetmx][200];
+  float calojet_trkChi2       [njetmx][200];
+  int   calojet_trkNdof       [njetmx][200];
+  float calojet_trkVx         [njetmx][200];
+  float calojet_trkVy         [njetmx][200];
+  float calojet_trkVz         [njetmx][200];
+  float calojet_trkDxyBS      [njetmx][200];
+  float calojet_trkDxyErrorBS [njetmx][200];
 
+
+  //! PF jets
   int npfjets;
   int pfjet_mult [njetmx];
+  int pfjet_mgen [njetmx];	 
   float pfjet_uce [njetmx];
   float pfjet_e   [njetmx];
   float pfjet_et  [njetmx];
@@ -295,7 +307,9 @@ class HOAnalyzer : public edm::EDAnalyzer {
   float pfjet_phi [njetmx];
   int   pfjet_ieta[njetmx];
   int   pfjet_iphi[njetmx];
-	 
+
+  float pfjet_chemen[njetmx];	 
+  float pfjet_neemen[njetmx];
   float pfjet_chhaden[njetmx];
   float pfjet_nehaden[njetmx];
   float pfjet_phen   [njetmx];
@@ -304,10 +318,11 @@ class HOAnalyzer : public edm::EDAnalyzer {
   //float pfjet_hfhaden[njetmx];
   //float pfjet_hfemen [njetmx];
 
-  //float pfjet_chemf  [njetmx];
+  float pfjet_chemf  [njetmx];
+  float pfjet_neemf  [njetmx];
   //float pfjet_chmuenf[njetmx];
   float pfjet_chenf[njetmx];
-  float pfjet_nuenf[njetmx];
+  float pfjet_neenf[njetmx];
   float pfjet_phenf[njetmx];
   float pfjet_elenf[njetmx];
   float pfjet_muenf[njetmx];
@@ -317,14 +332,55 @@ class HOAnalyzer : public edm::EDAnalyzer {
   float pfjet_tracksumecal[njetmx];
   float pfjet_tracksumhcal[njetmx];
   float pfjet_tracksumho  [njetmx];
+  float pfjet_tracksumhfem[njetmx];
+  float pfjet_tracksumhfha[njetmx];
 
-  int pfjet_candId   [njetmx][500];
-  float pfjet_cande  [njetmx][500];
-  float pfjet_candet [njetmx][500];
-  float pfjet_candpt [njetmx][500];
-  float pfjet_candeta[njetmx][500];
-  float pfjet_candphi[njetmx][500];
+  int pfjet_ncand    [njetmx];
+  int pfjet_candId   [njetmx][150];
+  float pfjet_cande  [njetmx][150];
+  float pfjet_candet [njetmx][150];
+  float pfjet_candpt [njetmx][150];
+  float pfjet_candeta[njetmx][150];
+  float pfjet_candphi[njetmx][150];
+  float pfjet_candthe[njetmx][150];
+  float pfjet_canrawecalen [njetmx][150];
+  float pfjet_canrawhcalen [njetmx][150];
+  float pfjet_canrawhoen   [njetmx][150];
+  float pfjet_cancorecalen [njetmx][150];
+  float pfjet_cancorhcalen [njetmx][150];
+  float pfjet_cancorhoen   [njetmx][150];
+  float pfjet_canps1en     [njetmx][150];
+  float pfjet_canps2en     [njetmx][150];
+  
+  
+  int pfjet_trk_blocks[njetmx][150];
+  int pfjet_trk_det   [njetmx][150][50];
+  float pfjet_trk_et  [njetmx][150][50];
+  float pfjet_trk_e   [njetmx][150][50];
+  float pfjet_trk_eta [njetmx][150][50];
+  float pfjet_trk_phi [njetmx][150][50];
 
+  int pfjet_ntrks           [njetmx];
+  int pfjet_trkqual         [njetmx][200];
+  float  pfjet_trkpt        [njetmx][200];
+  float  pfjet_trketa       [njetmx][200];
+  float  pfjet_trkphi       [njetmx][200];
+  float  pfjet_trkPtError   [njetmx][200];
+  int pfjet_trkCharge       [njetmx][200];
+  int pfjet_trkNHit         [njetmx][200];
+  float pfjet_trkDxy        [njetmx][200];
+  float pfjet_trkDxyError   [njetmx][200];
+  float pfjet_trkDz         [njetmx][200];
+  float pfjet_trkDzError    [njetmx][200];
+  float pfjet_trkChi2       [njetmx][200];
+  int   pfjet_trkNdof       [njetmx][200];
+  float pfjet_trkVx         [njetmx][200];
+  float pfjet_trkVy         [njetmx][200];
+  float pfjet_trkVz         [njetmx][200];
+  float pfjet_trkDxyBS      [njetmx][200];
+  float pfjet_trkDxyErrorBS [njetmx][200];
+
+  //! HB 
   int nhb;
   float hb_en [hcmx];
   float hb_et [hcmx];
@@ -336,7 +392,7 @@ class HOAnalyzer : public edm::EDAnalyzer {
   float hb_eta[hcmx];
   float hb_phi[hcmx];
 
-
+  //! HO
   int nho;
   float ho_en [hcmx];
   float ho_et [hcmx];
@@ -358,6 +414,7 @@ class HOAnalyzer : public edm::EDAnalyzer {
   float refemet [njetmx];
   float refhaden[njetmx];
   float refhadet[njetmx];
+  float refinven[njetmx];
 
   int nvtx;
   float vertx[vtmax];
@@ -408,7 +465,8 @@ HOAnalyzer::HOAnalyzer(const edm::ParameterSet& iConfig)
   T1->Branch("ntkpm", ntkpm, "ntkpm[nvtx]/I");
 
   T1->Branch("ncalojets", &ncalojets, "ncalojets/I");
-  //T1->Branch("calojet_cons",calojet_cons,"calojet_cons[ncalojets]/I");
+  T1->Branch("calojet_mgen",calojet_mgen,"calojet_mgen[ncalojets]/I");	 
+  T1->Branch("calojet_cons",calojet_cons,"calojet_cons[ncalojets]/I");
   T1->Branch("calojet_n90",calojet_n90,"calojet_n90[ncalojets]/I");
   T1->Branch("calojet_n90hits",calojet_n90hits,"calojet_n90hits[ncalojets]/I");
   T1->Branch("calojet_fHPD",calojet_fHPD,"calojet_fHPD[ncalojets]/F");
@@ -427,13 +485,14 @@ HOAnalyzer::HOAnalyzer(const edm::ParameterSet& iConfig)
   //T1->Branch("calojet_hadenhe",calojet_hadenhe,"calojet_hadenhe[ncalojets]/F");	 
   //T1->Branch("calojet_hadenhf",calojet_hadenhf,"calojet_hadenhf[ncalojets]/F");	   
   T1->Branch("calojet_hadenho",calojet_hadenho,"calojet_hadenho[ncalojets]/F");	 
+  T1->Branch("calojet_emeneb",calojet_emeneb,"calojet_emeneb[ncalojets]/F");	 
 
   T1->Branch("calojet_towa",calojet_towa,"calojet_towa[ncalojets]/F");	 
   T1->Branch("calojet_hadf",calojet_hadf,"calojet_hadf[ncalojets]/F");	
   T1->Branch("calojet_emf",calojet_emf,"calojet_emf[ncalojets]/F");
 
   
-  T1->Branch("ncalotow",ncalotow,"ncalotow[ncalojets]/I");	     
+  //T1->Branch("ncalotow",ncalotow,"ncalotow[ncalojets]/I");	     
   T1->Branch("calotowE",calotowE,"calotowE[ncalojets][500]/F");	   
   T1->Branch("calotowHadE",calotowHadE,"calotowHadE[ncalojets][500]/F");	     
   T1->Branch("calotowEmE",calotowEmE,"calotowEmE[ncalojets][500]/F");	     
@@ -461,27 +520,28 @@ HOAnalyzer::HOAnalyzer(const edm::ParameterSet& iConfig)
 
 
   T1->Branch("calojet_ntrks"          ,calojet_ntrks        ,"calojet_ntrks         [ncalojets]/I");  
-  T1->Branch("calojet_trkqual"        ,calojet_trkqual      ,"calojet_trkqual       [ncalojets][500]/I");
-  T1->Branch("calojet_trkpt"          ,calojet_trkpt        ,"calojet_trkpt         [ncalojets][500]/F");
-  T1->Branch("calojet_trketa"         ,calojet_trketa       ,"calojet_trketa        [ncalojets][500]/F");
-  T1->Branch("calojet_trkphi"         ,calojet_trkphi       ,"calojet_trkphi        [ncalojets][500]/F");
-  T1->Branch("calojet_trkPtError"     ,calojet_trkPtError   ,"calojet_trkPtError    [ncalojets][500]/F");
-  T1->Branch("calojet_trkCharge"      ,calojet_trkCharge    ,"calojet_trkCharge     [ncalojets][500]/I");
-  T1->Branch("calojet_trkNHit"        ,calojet_trkNHit      ,"calojet_trkNHit       [ncalojets][500]/I");
-  T1->Branch("calojet_trkDxy"         ,calojet_trkDxy       ,"calojet_trkDxy        [ncalojets][500]/F");
-  T1->Branch("calojet_trkDxyError"    ,calojet_trkDxyError  ,"calojet_trkDxyError   [ncalojets][500]/F");
-  T1->Branch("calojet_trkDz"          ,calojet_trkDz        ,"calojet_trkDz         [ncalojets][500]/F");
-  T1->Branch("calojet_trkDzError"     ,calojet_trkDzError   ,"calojet_trkDzError    [ncalojets][500]/F");
-  T1->Branch("calojet_trkChi2"        ,calojet_trkChi2      ,"calojet_trkChi2       [ncalojets][500]/F");
-  T1->Branch("calojet_trkNdof"        ,calojet_trkNdof      ,"calojet_trkNdof       [ncalojets][500]/I");
-  T1->Branch("calojet_trkVx"          ,calojet_trkVx        ,"calojet_trkVx         [ncalojets][500]/F");
-  T1->Branch("calojet_trkVy"          ,calojet_trkVy        ,"calojet_trkVy         [ncalojets][500]/F");
-  T1->Branch("calojet_trkVz"          ,calojet_trkVz        ,"calojet_trkVz         [ncalojets][500]/F");
-  T1->Branch("calojet_trkDxyBS"       ,calojet_trkDxyBS     ,"calojet_trkDxyBS      [ncalojets][500]/F");
-  T1->Branch("calojet_trkDxyErrorBS"  ,calojet_trkDxyErrorBS,"calojet_trkDxyErrorBS [ncalojets][500]/F");
+  T1->Branch("calojet_trkqual"        ,calojet_trkqual      ,"calojet_trkqual       [ncalojets][200]/I");
+  T1->Branch("calojet_trkpt"          ,calojet_trkpt        ,"calojet_trkpt         [ncalojets][200]/F");
+  T1->Branch("calojet_trketa"         ,calojet_trketa       ,"calojet_trketa        [ncalojets][200]/F");
+  T1->Branch("calojet_trkphi"         ,calojet_trkphi       ,"calojet_trkphi        [ncalojets][200]/F");
+  T1->Branch("calojet_trkPtError"     ,calojet_trkPtError   ,"calojet_trkPtError    [ncalojets][200]/F");
+  T1->Branch("calojet_trkCharge"      ,calojet_trkCharge    ,"calojet_trkCharge     [ncalojets][200]/I");
+  T1->Branch("calojet_trkNHit"        ,calojet_trkNHit      ,"calojet_trkNHit       [ncalojets][200]/I");
+  T1->Branch("calojet_trkDxy"         ,calojet_trkDxy       ,"calojet_trkDxy        [ncalojets][200]/F");
+  T1->Branch("calojet_trkDxyError"    ,calojet_trkDxyError  ,"calojet_trkDxyError   [ncalojets][200]/F");
+  T1->Branch("calojet_trkDz"          ,calojet_trkDz        ,"calojet_trkDz         [ncalojets][200]/F");
+  T1->Branch("calojet_trkDzError"     ,calojet_trkDzError   ,"calojet_trkDzError    [ncalojets][200]/F");
+  T1->Branch("calojet_trkChi2"        ,calojet_trkChi2      ,"calojet_trkChi2       [ncalojets][200]/F");
+  T1->Branch("calojet_trkNdof"        ,calojet_trkNdof      ,"calojet_trkNdof       [ncalojets][200]/I");
+  T1->Branch("calojet_trkVx"          ,calojet_trkVx        ,"calojet_trkVx         [ncalojets][200]/F");
+  T1->Branch("calojet_trkVy"          ,calojet_trkVy        ,"calojet_trkVy         [ncalojets][200]/F");
+  T1->Branch("calojet_trkVz"          ,calojet_trkVz        ,"calojet_trkVz         [ncalojets][200]/F");
+  T1->Branch("calojet_trkDxyBS"       ,calojet_trkDxyBS     ,"calojet_trkDxyBS      [ncalojets][200]/F");
+  T1->Branch("calojet_trkDxyErrorBS"  ,calojet_trkDxyErrorBS,"calojet_trkDxyErrorBS [ncalojets][200]/F");
 
 
   T1->Branch("npfjets", &npfjets, "npfjets/I");
+  T1->Branch("pfjet_mgen",pfjet_mgen,"pfjet_mgen[npfjets]/I");	 
   T1->Branch("pfjet_cons",pfjet_cons,"pfjet_cons[npfjets]/I");
   T1->Branch("pfjet_mult",pfjet_mult,"pfjet_mult[npfjets]/I");
   T1->Branch("pfjet_uce",pfjet_uce,"pfjet_uce[npfjets]/F");
@@ -494,6 +554,8 @@ HOAnalyzer::HOAnalyzer(const edm::ParameterSet& iConfig)
   T1->Branch("pfjet_iphi",pfjet_iphi,"pfjet_iphi[npfjets]/I");
   T1->Branch("pfjet_ieta",pfjet_ieta,"pfjet_ieta[npfjets]/I");
 
+  T1->Branch("pfjet_chemen",pfjet_chemen,"pfjet_chemen[npfjets]/F");	 
+  T1->Branch("pfjet_neemen",pfjet_neemen,"pfjet_neemen[npfjets]/F");	 
   T1->Branch("pfjet_chhaden",pfjet_chhaden,"pfjet_chhaden[npfjets]/F");	 
   T1->Branch("pfjet_nehaden",pfjet_nehaden,"pfjet_nehaden[npfjets]/F");	 
   T1->Branch("pfjet_phen",pfjet_phen,"pfjet_phen[npfjets]/F");	 
@@ -501,11 +563,12 @@ HOAnalyzer::HOAnalyzer(const edm::ParameterSet& iConfig)
   T1->Branch("pfjet_muen",pfjet_muen,"pfjet_muen[npfjets]/F");	 
   //T1->Branch("pfjet_hfhaden",pfjet_hfhaden,"pfjet_hfhaden[npfjets]/F");	 
   //T1->Branch("pfjet_hfemen",pfjet_hfemen,"pfjet_hfemen[npfjets]/F");	 
-  //T1->Branch("pfjet_chemf",pfjet_chemf,"pfjet_chemf[npfjets]/F");	 
+  T1->Branch("pfjet_chemf",pfjet_chemf,"pfjet_chemf[npfjets]/F");	 
+  T1->Branch("pfjet_neemf",pfjet_neemf,"pfjet_neemf[npfjets]/F");	 
   //T1->Branch("pfjet_chmuenf",pfjet_chmuenf,"pfjet_chmuef[npfjets]/F");	 
 
   T1->Branch("pfjet_chenf",pfjet_chenf,"pfjet_chenf[npfjets]/F");	   
-  T1->Branch("pfjet_nuenf",pfjet_nuenf,"pfjet_nuenf[npfjets]/F");	   
+  T1->Branch("pfjet_neenf",pfjet_neenf,"pfjet_neenf[npfjets]/F");	   
   T1->Branch("pfjet_phenf",pfjet_phenf,"pfjet_phenf[npfjets]/F");	   
   T1->Branch("pfjet_elenf",pfjet_elenf,"pfjet_elenf[npfjets]/F");	   
   T1->Branch("pfjet_muenf",pfjet_muenf,"pfjet_muenf[npfjets]/F");	   
@@ -515,13 +578,53 @@ HOAnalyzer::HOAnalyzer(const edm::ParameterSet& iConfig)
   T1->Branch("pfjet_tracksumecal",pfjet_tracksumecal,"pfjet_tracksumecal[npfjets]/F");
   T1->Branch("pfjet_tracksumhcal",pfjet_tracksumhcal,"pfjet_tracksumhcal[npfjets]/F");
   T1->Branch("pfjet_tracksumho",pfjet_tracksumho,"pfjet_tracksumho[npfjets]/F");
+  T1->Branch("pfjet_tracksumhfem",pfjet_tracksumhfem,"pfjet_tracksumhfem[npfjets]/F");
+  T1->Branch("pfjet_tracksumhfha",pfjet_tracksumhfha,"pfjet_tracksumhfha[npfjets]/F");
 
-  T1->Branch("pfjet_candId" ,    pfjet_candId ,"pfjet_candId [npfjets][500]/I");
-  T1->Branch("pfjet_cande"  ,    pfjet_cande  ,"pfjet_cande  [npfjets][500]/F");
-  T1->Branch("pfjet_candet" ,    pfjet_candet ,"pfjet_candet [npfjets][500]/F");
-  T1->Branch("pfjet_candpt" ,    pfjet_candpt ,"pfjet_candpt [npfjets][500]/F");
-  T1->Branch("pfjet_candeta",    pfjet_candeta,"pfjet_candeta[npfjets][500]/F");
-  T1->Branch("pfjet_candphi",    pfjet_candphi,"pfjet_candphi[npfjets][500]/F");
+  T1->Branch("pfjet_ncand"  ,    pfjet_ncand  ,"pfjet_ncand  [npfjets]/I");
+  T1->Branch("pfjet_candId" ,    pfjet_candId ,"pfjet_candId [npfjets][150]/I");
+  T1->Branch("pfjet_cande"  ,    pfjet_cande  ,"pfjet_cande  [npfjets][150]/F");
+  T1->Branch("pfjet_candet" ,    pfjet_candet ,"pfjet_candet [npfjets][150]/F");
+  T1->Branch("pfjet_candpt" ,    pfjet_candpt ,"pfjet_candpt [npfjets][150]/F");
+  T1->Branch("pfjet_candeta",    pfjet_candeta,"pfjet_candeta[npfjets][150]/F");
+  T1->Branch("pfjet_candphi",    pfjet_candphi,"pfjet_candphi[npfjets][150]/F");
+  T1->Branch("pfjet_candthe",    pfjet_candthe,"pfjet_candthe[npfjets][150]/F");
+  T1->Branch("pfjet_canrawecalen",    pfjet_canrawecalen ,  "pfjet_canrawecalen [npfjets][150]/F");
+  T1->Branch("pfjet_canrawhcalen",    pfjet_canrawhcalen ,  "pfjet_canrawhcalen [npfjets][150]/F");
+  T1->Branch("pfjet_canrawhoen",      pfjet_canrawhoen   ,  "pfjet_canrawhoen   [npfjets][150]/F");
+  T1->Branch("pfjet_cancorecalen",    pfjet_cancorecalen ,  "pfjet_cancorecalen [npfjets][150]/F");
+  T1->Branch("pfjet_cancorhcalen",    pfjet_cancorhcalen ,  "pfjet_cancorhcalen [npfjets][150]/F");
+  T1->Branch("pfjet_cancorhoen",      pfjet_cancorhoen   ,  "pfjet_cancorhoen   [npfjets][150]/F");
+  T1->Branch("pfjet_canps1en",        pfjet_canps1en    ,  "pfjet_canps1en     [npfjets][150]/F");
+  T1->Branch("pfjet_canps2en",        pfjet_canps2en    ,  "pfjet_canps2en     [npfjets][150]/F");
+
+  T1->Branch("pfjet_trk_blocks" ,pfjet_trk_blocks,"pfjet_trk_blocks[npfjets][150]/I");   
+  T1->Branch("pfjet_trk_det"    ,pfjet_trk_det   ,"pfjet_trk_det   [npfjets][150][50]/I");
+  T1->Branch("pfjet_trk_et"     ,pfjet_trk_et    ,"pfjet_trk_et    [npfjets][150][50]/F");
+  T1->Branch("pfjet_trk_e"      ,pfjet_trk_e     ,"pfjet_trk_e     [npfjets][150][50]/F");
+  T1->Branch("pfjet_trk_eta"    ,pfjet_trk_eta   ,"pfjet_trk_eta   [npfjets][150][50]/F");
+  T1->Branch("pfjet_trk_phi"    ,pfjet_trk_phi   ,"pfjet_trk_phi   [npfjets][150][50]/F");
+
+  T1->Branch("pfjet_ntrks"          ,pfjet_ntrks        ,"pfjet_ntrks         [npfjets]/I");  
+  T1->Branch("pfjet_trkqual"        ,pfjet_trkqual      ,"pfjet_trkqual       [npfjets][200]/I");
+  T1->Branch("pfjet_trkpt"          ,pfjet_trkpt        ,"pfjet_trkpt         [npfjets][200]/F");
+  T1->Branch("pfjet_trketa"         ,pfjet_trketa       ,"pfjet_trketa        [npfjets][200]/F");
+  T1->Branch("pfjet_trkphi"         ,pfjet_trkphi       ,"pfjet_trkphi        [npfjets][200]/F");
+  T1->Branch("pfjet_trkPtError"     ,pfjet_trkPtError   ,"pfjet_trkPtError    [npfjets][200]/F");
+  T1->Branch("pfjet_trkCharge"      ,pfjet_trkCharge    ,"pfjet_trkCharge     [npfjets][200]/I");
+  T1->Branch("pfjet_trkNHit"        ,pfjet_trkNHit      ,"pfjet_trkNHit       [npfjets][200]/I");
+  T1->Branch("pfjet_trkDxy"         ,pfjet_trkDxy       ,"pfjet_trkDxy        [npfjets][200]/F");
+  T1->Branch("pfjet_trkDxyError"    ,pfjet_trkDxyError  ,"pfjet_trkDxyError   [npfjets][200]/F");
+  T1->Branch("pfjet_trkDz"          ,pfjet_trkDz        ,"pfjet_trkDz         [npfjets][200]/F");
+  T1->Branch("pfjet_trkDzError"     ,pfjet_trkDzError   ,"pfjet_trkDzError    [npfjets][200]/F");
+  T1->Branch("pfjet_trkChi2"        ,pfjet_trkChi2      ,"pfjet_trkChi2       [npfjets][200]/F");
+  T1->Branch("pfjet_trkNdof"        ,pfjet_trkNdof      ,"pfjet_trkNdof       [npfjets][200]/I");
+  T1->Branch("pfjet_trkVx"          ,pfjet_trkVx        ,"pfjet_trkVx         [npfjets][200]/F");
+  T1->Branch("pfjet_trkVy"          ,pfjet_trkVy        ,"pfjet_trkVy         [npfjets][200]/F");
+  T1->Branch("pfjet_trkVz"          ,pfjet_trkVz        ,"pfjet_trkVz         [npfjets][200]/F");
+  T1->Branch("pfjet_trkDxyBS"       ,pfjet_trkDxyBS     ,"pfjet_trkDxyBS      [npfjets][200]/F");
+  T1->Branch("pfjet_trkDxyErrorBS"  ,pfjet_trkDxyErrorBS,"pfjet_trkDxyErrorBS [npfjets][200]/F");
+
 
   T1->Branch("nhb",&nhb,"nhb/I");	   
   T1->Branch("hb_en"   ,hb_en    ,"hb_en[nhb]/F");	   
@@ -559,6 +662,7 @@ HOAnalyzer::HOAnalyzer(const edm::ParameterSet& iConfig)
     T1->Branch("refhaden", refhaden, "refhaden[nref]/F");
     T1->Branch("refemet", refemet, "refemet[nref]/F");
     T1->Branch("refhadet", refhadet, "refhadet[nref]/F");
+    T1->Branch("refinven", refinven, "refinven[nref]/F");
   }
 
 
@@ -776,6 +880,9 @@ HOAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
      std::cout << " No jet algorithms are defined  please check your cfg's ..... " << std::endl;
    }
 
+   //const JetCorrector* corrCalo = JetCorrector::getJetCorrector ("ak5CaloL1FastL2L3", iSetup);
+   //const JetCorrector* corrPF   = JetCorrector::getJetCorrector ("ak5PFL1FastL2L3",iSetup);
+
    ncalojets=0;
    npfjets=0;
    nref=0;
@@ -794,8 +901,10 @@ HOAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
 
      for(unsigned int ij=0; ij< jets->size(); ++ij){
-       const pat::Jet &jet = (*jets)[ij];
-       
+       //const pat::Jet &jet = (*jets)[ij];
+       const pat::Jet &jet = jets->at(ij);
+       //reco::Jet *corrjet = (reco::Jet *)(&jet);
+
        if(fabs(jet.eta()) > 2.6 || jet.pt() <= 20.0)continue;
        
        //float rawpt  = jet.correctedJet("Uncorrected").pt();
@@ -806,23 +915,22 @@ HOAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
        const reco::TrackRefVector & jetTracks = jet.associatedTracks();
 
        double dr = 9999;
-       if(genjet)dr = reco::deltaR(jet.eta(), jet.phi(), genjet->eta(), genjet->phi());       
-
-       if(il==0){
-	 if(genjet){
+       int hasGen=0;
+       if(genjet){
+	 dr = reco::deltaR(jet.eta(), jet.phi(), genjet->eta(), genjet->phi());       
+	 hasGen=1;
+	 if(il==0){
 	   refpt   [nref] = genjet->pt();
 	   refeta  [nref] = genjet->eta();
 	   refphi  [nref] = genjet->phi();
 	   refen   [nref] = genjet->energy();
 	   refemen [nref] = genjet->emEnergy(); 
 	   refhaden[nref] = genjet->hadEnergy(); 	   
-	   
-	   refet  [nref]  = refen[nref]/cosh(genjet->eta());
-	   refemet[nref]  = refemen[nref]/cosh(genjet->eta());
+	   refinven[nref] = genjet->invisibleEnergy();
+
+	   refet   [nref] = refen[nref]/cosh(genjet->eta());
+	   refemet [nref] = refemen[nref]/cosh(genjet->eta());
 	   refhadet[nref] = refhaden[nref]/cosh(genjet->eta());
-
-
-
 	   //std::cout<<"\t refet  : " << refet[nref] << "\t ref emEt : "<< refemet[nref] << "\t ref hadEt : "<< refhadet[nref] << std::endl;
 	   nref++;
 	 }
@@ -833,12 +941,13 @@ HOAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
        float jetemf=-999;
        int istat=0;
        if( jet.isCaloJet() ){
+
 	 istat=1;
 	 if(jet.getCaloConstituents().size() < 2)continue;
 	 //if (ncalojets > 1 && (fabs(jet.eta()) > 4.5 || jet.pt() < 30.0)) continue;
-	 
+
 	 jetemf = jet.emEnergyFraction();
-	 if(jetemf < 0.01 || jetemf >=1.0)continue;
+	 if(jetemf < 0.01 || jetemf >= 1.0)continue;
 	 
 	 reco::JetID jetid = jet.jetID();
 	 //if (jetid.n90Hits <= 1) ipass = 0;
@@ -871,12 +980,10 @@ HOAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
 
 	   calojet_ntrks[ncalojets]=0;
-	   TLorentzVector p4_tracks(0,0,0,0);	   
+	   reco::Particle::LorentzVector p4_tracks(0,0,0,0);	   
 	   for ( reco::TrackRefVector::const_iterator itrk = jetTracks.begin(),
 		   itrkEnd = jetTracks.end(); itrk != itrkEnd; ++itrk ) {
-	     TLorentzVector p4_trk;
-	     double M_PION = 0.140;
-	     p4_trk.SetPtEtaPhiM( (*itrk)->pt(), (*itrk)->eta(), (*itrk)->phi(), M_PION );
+	     reco::Particle::LorentzVector p4_trk((*itrk)->px(), (*itrk)->py(), (*itrk)->pz(), (*itrk)->p());
 	     p4_tracks += p4_trk;
 	     
 	     calojet_trkqual    [ncalojets][calojet_ntrks[ncalojets]]  = (*itrk)->quality(TrackBase::highPurity);
@@ -899,11 +1006,12 @@ HOAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	     calojet_trkDxyErrorBS [ncalojets][calojet_ntrks[ncalojets]]  = sqrt(pow(calojet_trkDxyError[ncalojets][calojet_ntrks[ncalojets]],2) + beamSpotH->BeamWidthX()*beamSpotH->BeamWidthY());
 
 	     calojet_ntrks[ncalojets]++;
-
+	     //std::cout <<  "  Calojet : " <<(*itrk)->eta() << "\t p4_trk eta : "<< p4_trk.eta() <<std::endl;
 	   }
-	   hist_jetCHF->Fill(p4_tracks.Energy()/jet.energy(),weight);
+	   hist_jetCHF->Fill(p4_tracks.energy()/jet.energy(),weight);
 	 }
 
+	 calojet_mgen[ncalojets] = hasGen;
 	 calojet_uce [ncalojets] = jet.correctedJet("Uncorrected").energy(); 
 	 calojet_e   [ncalojets] = jet.energy(); 
 	 calojet_et  [ncalojets] = jet.et();
@@ -913,7 +1021,7 @@ HOAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	 calojet_n90hits [ncalojets] = jetid.n90Hits;
 	 calojet_fHPD[ncalojets] = jetid.fHPD;
 	 calojet_fRBX[ncalojets] = jetid.fRBX;
-	 //calojet_cons[ncalojets] = jet.getCaloConstituents().size(); 
+	 calojet_cons[ncalojets] = jet.getCaloConstituents().size(); 
 	 calojet_eta [ncalojets] = jet.eta();
 	 calojet_phi [ncalojets] = jet.phi();
 	 
@@ -921,7 +1029,8 @@ HOAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	 //calojet_hadenhe[ncalojets] = jet.hadEnergyInHE();
 	 //calojet_hadenhf[ncalojets] = jet.hadEnergyInHF();
 	 calojet_hadenho[ncalojets] = jet.hadEnergyInHO();
-	 
+	 calojet_emeneb[ncalojets]  = jet.emEnergyInEB();
+
 	 calojet_towa[ncalojets] = jet.towersArea();
 	 
 	 calojet_hadf[ncalojets] = jet.energyFractionHadronic();
@@ -937,25 +1046,23 @@ HOAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	 //! Try to read Calo Constituents
 	 sumCaloEt[ncalojets]=sumCaloEmEt[ncalojets]=sumCaloHadEt[ncalojets]=sumCaloHoEt[ncalojets]=0;
 	 sumCaloE[ncalojets]=sumCaloEmE[ncalojets]=sumCaloHadE[ncalojets]=sumCaloHoE[ncalojets]=0;
-	 ncalotow[ncalojets]=0;
+	 //ncalotow[ncalojets]=0;
 	 for (unsigned ic = 0; ic < jet.getCaloConstituents().size(); ic++) {
 	   CaloTowerPtr tower = (jet.getCaloConstituents())[ic];
 	   CaloTowerDetId id = tower->id();
 
-	   calotowE    [ncalojets][ncalotow[ncalojets]] = tower->energy(); 
-	   calotowHadE [ncalojets][ncalotow[ncalojets]] = tower->hadEnergy();
-	   calotowEmE  [ncalojets][ncalotow[ncalojets]] = tower->emEnergy();
-	   calotowHoE  [ncalojets][ncalotow[ncalojets]] = tower->outerEnergy();
-	   calotowEt   [ncalojets][ncalotow[ncalojets]] = tower->et(); 
-	   calotowHadEt[ncalojets][ncalotow[ncalojets]] = tower->hadEt();
-	   calotowEmEt [ncalojets][ncalotow[ncalojets]] = tower->emEt();
-	   calotowHoEt [ncalojets][ncalotow[ncalojets]] = tower->outerEt();
-	   calotoweta  [ncalojets][ncalotow[ncalojets]] = tower->eta();
-	   calotowphi  [ncalojets][ncalotow[ncalojets]] = tower->phi();
-	   calotowieta [ncalojets][ncalotow[ncalojets]] = id.ieta();
-	   calotowiphi [ncalojets][ncalotow[ncalojets]] = id.iphi();
-
-	   ncalotow[ncalojets]++;
+	   calotowE    [ncalojets][ic] = tower->energy(); 
+	   calotowHadE [ncalojets][ic] = tower->hadEnergy();
+	   calotowEmE  [ncalojets][ic] = tower->emEnergy();
+	   calotowHoE  [ncalojets][ic] = tower->outerEnergy();
+	   calotowEt   [ncalojets][ic] = tower->et(); 
+	   calotowHadEt[ncalojets][ic] = tower->hadEt();
+	   calotowEmEt [ncalojets][ic] = tower->emEt();
+	   calotowHoEt [ncalojets][ic] = tower->outerEt();
+	   calotoweta  [ncalojets][ic] = tower->eta();
+	   calotowphi  [ncalojets][ic] = tower->phi();
+	   calotowieta [ncalojets][ic] = id.ieta();
+	   calotowiphi [ncalojets][ic] = id.iphi();
 
 	   //float aeta = tower->eta();
 	   //float aphi = tower->phi();
@@ -972,10 +1079,10 @@ HOAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	   sumCaloHadEt[ncalojets] += tower->hadEt();
 	   sumCaloHoEt [ncalojets] += tower->outerEt();
 
-	   sumCaloE   [ncalojets]   += tower->energy();
-	   sumCaloEmE [ncalojets]   += tower->emEnergy();
-	   sumCaloHadE[ncalojets]   += tower->hadEnergy();
-	   sumCaloHoE [ncalojets]   += tower->outerEnergy();
+	   sumCaloE   [ncalojets]  += tower->energy();
+	   sumCaloEmE [ncalojets]  += tower->emEnergy();
+	   sumCaloHadE[ncalojets]  += tower->hadEnergy();
+	   sumCaloHoE [ncalojets]  += tower->outerEnergy();
 
 
 	   // std:: cout<< " \t " << ic  <<"  " <<  "\t caltowEt : " 
@@ -984,21 +1091,64 @@ HOAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	   
 	   //std::cout << "\t \t \t \t ###################  : "<< "\t caleta : "<< caleta << " ieta : " << ieta_calo << "\t calphi : "<< calphi << " iphi : "<< iphi_calo << std::endl;
 
-	   if(ncalotow[ncalojets]>500){
+	   if(ic>500){
 	     std::cout<<"##########################################################################" <<std::endl;
 	     std::cout<<"##########################################################################" <<std::endl;
 	     std::cout<<"#################### ncalotow > 500 please check #########################" <<std::endl;
 	     std::cout<<"##########################################################################" <<std::endl;
 	     std::cout<<"##########################################################################" <<std::endl;
 	   }
-
 	 }   
 
 	 //std::cout <<"\t \t Calo Jets  "<< "\t  jet Et : "<< calojetet  [ncalojets]  << "   " << ncal << "\t SumEt "<< sumEt <<"\t EmEt : "<< sumEmEt << "\t sumHadEt : "<< sumHadEt << "\t sumHoEt : " << sumHoEt << std::endl;
 
+
+	 //! energy with added HO
+	 //reco::Particle::LorentzVector p4_corr = jet.p4();
+	 //reco::Particle::LorentzVector p4_tmp  = jet.correctedP4("Uncorrected");
+	 
+	 // std::cout <<ncalojets<<"\t \t UnCorr eta : " << p4_tmp.eta()  <<"\t corr eta : "<< p4_corr.eta() << std::endl;
+	 // std::cout <<ncalojets<<"\t \t UnCorr phi : " << p4_tmp.phi()  <<"\t corr phi : "<< p4_corr.phi() << std::endl;
+	 // std::cout <<ncalojets<<"\t \t UnCorr pt  : " << p4_tmp.pt()   <<"\t corr pt  : "<< p4_corr.pt()  << std::endl;
+
+	 // double theta  = p4_tmp.theta();
+	 // double  phi   = p4_tmp.phi();
+	 // double ho_en  = sumCaloHoE[ncalojets];
+	 // double ho_ex  = ho_en * sin(theta) * cos(phi);
+	 // double ho_ey  = ho_en * cos(theta) * cos(phi);
+	 // double ho_ez  = ho_en * cos(theta);
+	 // reco::Particle::LorentzVector p4_ho(ho_ex, ho_ey, ho_ez, ho_en);
+	 // reco::Particle::LorentzVector p4_jetwHO = p4_tmp + p4_ho;
+	 // double newjec = corrCalo->correction(p4_jetwHO);
+	 // corrjet.scaleEnergy(newjec);
+
+	 //reco::Jet newJet(p4_newjet);
+	 //p4_newjet.SetPtEtaPhiE(calojet_ucpt[ncalojets], calojet_eta[ncalojets], calojet_phi[ncalojets], updated_ene);
+	 // //! copy the existing jet
+	 //double newjec = corrector->correction(corrjet->p4());
+	 // double newjec = corrCalo->correction(p4_newjet);
+	 // corrjet.scaleEnergy(newjec);
+
+	 //	 std::cout <<ncalojets<<"\t \t Older phi : " <<p4_tmp.phi()   <<"\t  HO : "<<p4_ho.phi()   <<"\t  final : "<<p4_jetwHO.phi()   <<"\t diff : "<<fabs(reco::deltaPhi(p4_tmp.phi(), p4_jetwHO.phi()))<< std::endl;
+	 //std::cout <<ncalojets<<"\t \t Older eta : " <<p4_tmp.eta()   <<"\t  HO : "<<p4_ho.eta()   <<"\t  final : "<<p4_jetwHO.eta()   <<"\t diff : "<<fabs(p4_tmp.eta() - p4_jetwHO.eta())<< std::endl;
+	 //std::cout <<ncalojets<<"\t \t Older ene : " <<p4_tmp.energy()<<"\t  HO : "<<p4_ho.energy()<<"\t  final : "<<p4_jetwHO.energy()<<"\t corr : "<<p4_corr.energy()<< "\t new corre : " << p4_jetwHO.energy()*newjec << std::endl;
+	 //std::cout <<ncalojets<<"\t \t Older pT  : " <<p4_tmp.pt()    <<"\t  HO : "<<p4_ho.pt()    <<"\t  final : "<<p4_jetwHO.pt()    <<"\t corr : "<<p4_corr.pt()    << "\t new corre : " << p4_jetwHO.pt()*newjec << std::endl;
+	 //std::cout <<"  \t \t Older UnCorr Energy : " << calojet_uce[ncalojets]  << "\t  W HO : "<< p4_newjet.energy() << std::endl;
+
 	 ncalojets++;
+	 //std::cout<<std::endl;
        }
        else if( jet.isPFJet() ){
+	 
+	 // if( !((abs(jet.getPFConstituents.size()) > 2) && 
+	 //       (jet.chargedMultiplicity()         > 1) && 
+	 //       (jet.chargedHadronEnergyFraction() > 0) && 
+	 //       (jet.chargedEmEnergyFraction()     < 1) && 
+	 //       (jet.neutralHadronEnergyFraction() < 0.9) && 
+	 //       (jet.neutralEmEnergyFraction() < 0.9)
+	 //       )
+	 //     )continue;
+	 
 	 
 	 istat=2;
 	 
@@ -1049,7 +1199,8 @@ HOAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	     hist_pf_deltar->Fill((reco::deltaR(jet.eta(), jet.phi(), genjet->eta(), genjet->phi())),weight);
 	   }
 	 }
-	 
+
+	 pfjet_mgen[npfjets] = hasGen;	 
 	 pfjet_uce [npfjets] = jet.correctedJet("Uncorrected").energy(); 
 	 pfjet_et  [npfjets] = jet.et(); 
 	 pfjet_e   [npfjets] = jet.energy(); 
@@ -1058,7 +1209,9 @@ HOAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	 pfjet_cons[npfjets] = jet.getPFConstituents().size(); 
 	 pfjet_eta [npfjets] = jet.eta();
 	 pfjet_phi [npfjets] = jet.phi();
-	 
+
+	 pfjet_chemen [npfjets] = jet.chargedEmEnergy();
+	 pfjet_neemen [npfjets] = jet.neutralEmEnergy();	 
 	 pfjet_chhaden[npfjets] = jet.chargedHadronEnergy();
 	 pfjet_nehaden[npfjets] = jet.neutralHadronEnergy();
 	 pfjet_phen   [npfjets] = jet.photonEnergy();
@@ -1069,8 +1222,10 @@ HOAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	 //pfjet_chemf  [npfjets] = jet.chargedEmEnergyFraction();
 	 //pfjet_chmuenf[npfjets] = jet.chargedMuEnergyFraction();
 
+	 pfjet_chemf[npfjets] = jet.chargedEmEnergyFraction();
 	 pfjet_chenf[npfjets] = jet.chargedHadronEnergyFraction();
-	 pfjet_nuenf[npfjets] = jet.neutralHadronEnergyFraction();
+	 pfjet_neemf[npfjets] = jet.neutralEmEnergyFraction();
+	 pfjet_neenf[npfjets] = jet.neutralHadronEnergyFraction();
 	 pfjet_phenf[npfjets] = jet.photonEnergyFraction();
 	 pfjet_elenf[npfjets] = jet.electronEnergyFraction();
 	 pfjet_muenf[npfjets] = jet.muonEnergyFraction();
@@ -1080,68 +1235,120 @@ HOAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	 pfjet_ieta [npfjets] = getieta(jet.eta());
 	 pfjet_iphi [npfjets] = getiphi(jet.phi());
 
+	 //! Tracks associated with jet
+	 pfjet_ntrks[npfjets]=0;
+	 //reco::Particle::LorentzVector p4_tracks(0,0,0,0);	   
+	 for ( reco::TrackRefVector::const_iterator itrk = jetTracks.begin(),
+		 itrkEnd = jetTracks.end(); itrk != itrkEnd; ++itrk ) {
+	   pfjet_trkqual    [npfjets][pfjet_ntrks[npfjets]]  = (*itrk)->quality(TrackBase::highPurity);
+	   pfjet_trkpt      [npfjets][pfjet_ntrks[npfjets]]  = (*itrk)->pt();
+	   pfjet_trketa     [npfjets][pfjet_ntrks[npfjets]]  = (*itrk)->eta();
+	   pfjet_trkphi     [npfjets][pfjet_ntrks[npfjets]]  = (*itrk)->phi();
+	   pfjet_trkPtError [npfjets][pfjet_ntrks[npfjets]]  = (*itrk)->ptError();
+	   pfjet_trkCharge  [npfjets][pfjet_ntrks[npfjets]]  = (*itrk)->charge();
+	   pfjet_trkNHit    [npfjets][pfjet_ntrks[npfjets]]  = (*itrk)->numberOfValidHits();
+	   pfjet_trkDxy     [npfjets][pfjet_ntrks[npfjets]]  = (*itrk)->dxy();
+	   pfjet_trkDxyError[npfjets][pfjet_ntrks[npfjets]]  = (*itrk)->dxyError();
+	   pfjet_trkDz      [npfjets][pfjet_ntrks[npfjets]]  = (*itrk)->dz();
+	   pfjet_trkDzError [npfjets][pfjet_ntrks[npfjets]]  = (*itrk)->dzError();
+	   pfjet_trkChi2    [npfjets][pfjet_ntrks[npfjets]]  = (*itrk)->chi2();
+	   pfjet_trkNdof    [npfjets][pfjet_ntrks[npfjets]]  = (*itrk)->ndof();
+	   pfjet_trkVx      [npfjets][pfjet_ntrks[npfjets]]  = (*itrk)->vx();
+	   pfjet_trkVy      [npfjets][pfjet_ntrks[npfjets]]  = (*itrk)->vy();
+	   pfjet_trkVz      [npfjets][pfjet_ntrks[npfjets]]  = (*itrk)->vz();
+	   pfjet_trkDxyBS   [npfjets][pfjet_ntrks[npfjets]]  = (*itrk)->dxy(beamPoint);
+	   pfjet_trkDxyErrorBS [npfjets][pfjet_ntrks[npfjets]]  = sqrt(pow(pfjet_trkDxyError[npfjets][pfjet_ntrks[npfjets]],2) + beamSpotH->BeamWidthX()*beamSpotH->BeamWidthY());
+	   pfjet_ntrks[npfjets]++;
+	 }
+
+
+	 pfjet_tracksumecal[npfjets]=0;
+	 pfjet_tracksumhcal[npfjets]=0;
+	 pfjet_tracksumho  [npfjets]=0;
+	 pfjet_tracksumhfem[npfjets]=0;
+	 pfjet_tracksumhfha[npfjets]=0;
+
+	 int ican=0;
+	 pfjet_ncand[npfjets] = 0;
 	 //! pf candidites
 	 for (int ix=0; ix<pfjet_cons[npfjets]; ix++) {
-	   //const reco::PFCandidatePtr candPtr = jet.getPFConstituent(ix);
-	   //reco::PFCandidate cand(candPtr);
+	   const reco::PFCandidatePtr candPtr = jet.getPFConstituent(ix);
+	   reco::PFCandidate cand(candPtr);
 
-	   reco::PFCandidate cand  = (jet.getPFConstituents())[ix];
+	   //reco::PFCandidate cand  = (jet.getPFConstituents())[ix];
+	   
+	   if(cand.particleId() == reco::PFCandidate::X)continue;
+	   if(cand.energy() == 0)continue;
 
-	   pfjet_candId [npfjets][ix] = (int)cand.particleId();
-	   pfjet_cande  [npfjets][ix] = cand.energy();
-	   pfjet_candet [npfjets][ix] = cand.et();
-	   pfjet_candpt [npfjets][ix] = cand.pt();
-	   pfjet_candeta[npfjets][ix] = cand.eta();
-	   pfjet_candphi[npfjets][ix] = cand.phi();
-	   pfjet_tracksumecal[npfjets] += 0;
-	   pfjet_tracksumhcal[npfjets] += 0;
-	   pfjet_tracksumho[npfjets] += 0;
+	   //double delr = reco::deltaR(jet.eta(), jet.phi(), cand.eta(), cand.phi());       
+	   //if(delr > 0.3)continue;
+	   
+	   pfjet_candId [npfjets][ican] = (int)cand.particleId();
+	   pfjet_cande  [npfjets][ican] = cand.energy();
+	   pfjet_candet [npfjets][ican] = cand.et();
+	   pfjet_candpt [npfjets][ican] = cand.pt();
+	   pfjet_candeta[npfjets][ican] = cand.eta();
+	   pfjet_candphi[npfjets][ican] = cand.phi();
+	   pfjet_candthe[npfjets][ican] = cand.theta();
 
-	   //only charged hadrons and leptons can be asscociated with a track
-	    float cand_type = cand.particleId();
-	    if(cand_type == PFCandidate::h || cand_type == PFCandidate::e || cand_type == PFCandidate::mu){
+	   //! Uncorrected energies
+	   pfjet_canrawecalen [npfjets][ican] = cand.rawEcalEnergy();
+	   pfjet_canrawhcalen [npfjets][ican] = cand.rawHcalEnergy();
+	   pfjet_canrawhoen   [npfjets][ican] = cand.rawHoEnergy();
 
-	      for(unsigned iblock=0; iblock<cand.elementsInBlocks().size(); iblock++) {
-	        PFBlockRef blockRef   = cand.elementsInBlocks()[iblock].first;
-	        unsigned indexInBlock = cand.elementsInBlocks()[iblock].second;
+	   //! Corrected energies
+	   pfjet_cancorecalen [npfjets][ican] = cand.ecalEnergy();
+	   pfjet_cancorhcalen [npfjets][ican] = cand.hcalEnergy();
+	   pfjet_cancorhoen   [npfjets][ican] = cand.hoEnergy();	   
+	   
+	   //! Pre shower energies
+	   pfjet_canps1en  [npfjets][ican]   = cand.pS1Energy();
+	   pfjet_canps2en  [npfjets][ican]   = cand.pS2Energy();
 
-	        const edm::OwnVector<  reco::PFBlockElement>&  elements = (*blockRef).elements();
 
-	        switch (elements[indexInBlock].type()) {
-	    	 //This tells you what type of element it is:
-	    	 //cout<<" block type"<<elements[indexInBlock].type()<<endl; 
-	        case PFBlockElement::ECAL: {
-	    	 reco::PFClusterRef clusterRef = elements[indexInBlock].clusterRef();
-	    	 double eet = clusterRef->energy()/cosh(clusterRef->eta());
-	    	 //cout<<" ecal energy "<<clusterRef->energy()<<endl;
-	    	 pfjet_tracksumecal[npfjets] += eet;
-	    	 break;
-	        }
-	        case PFBlockElement::HCAL: {
-	    	 reco::PFClusterRef clusterRef = elements[indexInBlock].clusterRef();
-	    	 double eet = clusterRef->energy()/cosh(clusterRef->eta());
-	    	 //cout<<" hcal energy "<<clusterRef->energy()<<endl;
-	    	 pfjet_tracksumhcal[npfjets] += eet;
-	    	 break;
-	        }
-	        case PFBlockElement::HO: {
-	    	 reco::PFClusterRef clusterRef = elements[indexInBlock].clusterRef();
-	    	 double eet = clusterRef->energy()/cosh(clusterRef->eta());
-	    	 //cout<<" ho energy "<<clusterRef->energy()<<endl;
-	    	 pfjet_tracksumho[npfjets] += eet;
-	    	 break;
-	        }
-	        case PFBlockElement::TRACK: {
-	    	 //This is just the reference to the track itself, since tracks can never be linked to other tracks
-	    	 break;
-	        }
-	        default:
-	    	 break;
-	        }
-   	     }
+	   int ib=0;
+	   pfjet_trk_blocks    [npfjets][ican] = 0;
+	   for(unsigned iblock=0; iblock<cand.elementsInBlocks().size(); iblock++) {
+	     PFBlockRef blockRef   = cand.elementsInBlocks()[iblock].first;
+	     unsigned indexInBlock = cand.elementsInBlocks()[iblock].second;
+	     const edm::OwnVector<  reco::PFBlockElement>&  elements = (*blockRef).elements();
+	     
+	     int pfblocktype =  (int)elements[indexInBlock].type();      
+
+	     if(pfblocktype==PFBlockElement::ECAL ||
+		pfblocktype==PFBlockElement::HCAL ||
+		pfblocktype==PFBlockElement::HO){
+
+	       reco::PFClusterRef clusterRef = elements[indexInBlock].clusterRef();
+	       double eet = clusterRef->energy()/cosh(clusterRef->eta());
+	       if(     pfblocktype==4 )pfjet_tracksumecal[npfjets] += eet; //! ecal
+	       else if(pfblocktype==5 )pfjet_tracksumhcal[npfjets] += eet; //! hcal
+	       else if(pfblocktype==11)pfjet_tracksumho  [npfjets] += eet; //! ho
+	       else if(pfblocktype==8 )pfjet_tracksumhfem[npfjets] += eet; //! hfem
+	       else if(pfblocktype==9 )pfjet_tracksumhfha[npfjets] += eet; //! hfhad
+	       
+	       pfjet_trk_det     [npfjets][ican][ib] = pfblocktype;
+	       pfjet_trk_et      [npfjets][ican][ib] = eet;
+	       pfjet_trk_e       [npfjets][ican][ib] = clusterRef->energy();
+	       pfjet_trk_eta     [npfjets][ican][ib] = clusterRef->eta();
+	       pfjet_trk_phi     [npfjets][ican][ib] = clusterRef->phi();
+
+	     }else if(pfblocktype==PFBlockElement::TRACK){
+	       reco::TrackRef trkRef = elements[indexInBlock].trackRef();
+	       if(!trkRef->quality(TrackBase::highPurity))continue;
+	       reco::Particle::LorentzVector p4_pftrk(trkRef->px(), trkRef->py(), trkRef->pz(), trkRef->p());	   
+	       pfjet_trk_det     [npfjets][ican][ib] = pfblocktype;
+	       pfjet_trk_et      [npfjets][ican][ib] = p4_pftrk.energy()/cosh(trkRef->eta());
+	       pfjet_trk_e       [npfjets][ican][ib] = p4_pftrk.energy();
+	       pfjet_trk_eta     [npfjets][ican][ib] = trkRef->eta();
+	       pfjet_trk_phi     [npfjets][ican][ib] = trkRef->phi();
+	     }
+	     ib++;
 	   }
+	   pfjet_trk_blocks    [npfjets][ican] = ib;
+	   ican++;
 	 }
-	 //std::cout <<"\t \t PF Jets  "<< "\t corrpt : "<< jet.pt() <<"\t raw pt : "<< pfjet_ucpt[npfjets] << "\t ieta : " << pfjet_ieta [npfjets] << std::endl;
+	 pfjet_ncand[npfjets] = ican;
 	 npfjets++;
        }
        if(isHistFill){
@@ -1211,6 +1418,10 @@ HOAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	 int idepth    = id.depth();
 
 	 GlobalPoint pos = caloGeom->getPosition(hoit->detid());
+
+	 //! SiPM's
+	 if(ietaho >=5 && ietaho<=10 && iphiho>=47 && iphiho<=58)continue;
+	 if(ietaho >=1 && ietaho<=15 && iphiho>=59 && iphiho<=70)continue;
 
 	 //if (ietaho== 5 && (iphiho==18 || iphiho==19)) continue;
 	 //if (ietaho==-5 && (iphiho>=11 && iphiho<=14)) continue;

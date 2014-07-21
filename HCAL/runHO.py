@@ -1,8 +1,8 @@
 import FWCore.ParameterSet.VarParsing as VarParsing
 
 ivars = VarParsing.VarParsing('python')
-#ivars.inputFiles = 'file:00A8FBA5-41E1-E111-934D-0025901D4C3E.root'
-ivars.inputFiles = 'file:./RECO/RECO_3000_3500_8TeV_DIGIRAWRECO_1.root'
+ivars.inputFiles = 'file:./reco.root'
+#ivars.inputFiles = 'file:./RECO/RECO_3000_3500_8TeV_DIGIRAWRECO_1.root'
 ivars.outputFile = './Output_hoanalyzer.root'
 ivars.parseArguments()
 
@@ -39,6 +39,9 @@ process.MessageLogger = cms.Service("MessageLogger",
 process.source = cms.Source("PoolSource", 
      fileNames = cms.untracked.vstring(ivars.inputFiles) 
 ) 
+process.maxEvents = cms.untracked.PSet(
+    input = cms.untracked.int32(-1)
+)
 
 #process.SimpleMemoryCheck = cms.Service("SimpleMemoryCheck", 
 #  ignoreTotal = cms.untracked.int32(1) ## default is one 
@@ -59,6 +62,7 @@ from RecoJets.Configuration.RecoJets_cff import *
 from RecoJets.Configuration.RecoPFJets_cff import *
 process.kt6PFJets.doRhoFastjet = True 
 process.ak5PFJets.doAreaFastjet = True 
+
 
 process.load("Configuration.StandardSequences.Services_cff") 
 process.load("Configuration.StandardSequences.FrontierConditions_GlobalTag_cff") 
@@ -191,7 +195,8 @@ process.ak5CalopatJets = patJets.clone(jetSource = cms.InputTag("ak5CaloJets"),
                                        
                                        genJetMatch = cms.InputTag("ak5CaloGenMatchJets"),
                                        
-                                       jetIDMap = cms.InputTag("ak5CaloJetID"),
+#                                       jetIDMap = cms.InputTag("ak5CaloJetID"),
+                                       jetIDMap = cms.InputTag("ak5JetID"),
 
                                        addJetCorrFactors    = cms.bool(True),
                                        jetCorrFactorsSource = cms.VInputTag(cms.InputTag("ak5CaloJetCorrFactors") ),
@@ -251,7 +256,7 @@ process.ak5CalopatJetSequence = cms.Sequence(process.ak5CaloJetCorrFactors
                                              * process.ak5CaloPartonMatch
                                              * process.ak5CaloGenMatchJets
                                              * process.ak5CaloJetFlavourId
-                                             * process.ak5CaloJetID
+#                                             * process.ak5CaloJetID
                                              * process.ak5CalopatJets
 )                                             
 
@@ -261,7 +266,7 @@ process.ak5PFpatJetSequence = cms.Sequence(process.ak5PFJetCorrFactors
                                            * process.ak5PFPartonMatch
                                            * process.ak5PFGenMatchJets
                                            * process.ak5PFJetFlavourId
-                                           * process.ak5PFJetID
+#                                           * process.ak5PFJetID
                                            * process.ak5PFpatJets
 )                                             
 
@@ -271,7 +276,7 @@ process.hotower = cms.EDAnalyzer("HOAnalyzer",
                                  Trigger = cms.untracked.bool(False),
                                  RECO = cms.untracked.bool(True),
                                  MonteCarlo =  cms.untracked.bool(True), 
-                                 towerInput = cms.InputTag('towerMaker'),
+                                 towerInput = cms.InputTag('towerMakerWithHO'),
                                  jetTags = cms.VInputTag(cms.InputTag('ak5CalopatJets'),
                                                          cms.InputTag('ak5PFpatJets')
                                                          )
