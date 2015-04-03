@@ -771,9 +771,9 @@ int jetmatch(std::string kAlgName="akPu3",
 	  
 	  mCaloPFMatchedJets.insert(std::make_pair(*iJet,*jJet));
 	  
-	}//! calo jet loop
-      }//! PF jet loop
-      
+	}//! PF jet loop
+      }//! Calo jet loop
+
       CPFItr itr;
       //! Matched jets (Calo jet matched to PF jet)
       for(itr = mCaloPFMatchedJets.begin(); itr != mCaloPFMatchedJets.end(); ++itr){
