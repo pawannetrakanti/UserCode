@@ -33,6 +33,20 @@ using namespace std;
 #pragma link off all functions;
 #endif
 
+
+//! constants
+#define iYear 2015
+
+#define pi 3.14159265
+
+#define  ketacut    2.0
+#define  kptrawcut  0.0
+#define  kptrecocut 0.0
+#define  kdelrmatch 0.2
+#define  kdelrcut   0.3
+#define  kvzcut     15.0
+
+
 void AddInputFiles(TChain */*ch*/, string /*iname*/, string /*inputTree*/);
 
 int GetPhiBin(float /*phi*/);
@@ -70,12 +84,11 @@ struct CompareMatchedJets {
     Jet cj2 = A2.first;  //! CaloJet 2nd pair
     Jet pf2 = A2.second; //! PFJet   2nd pair
 
-    float delr1 = deltaR(pf1.eta, pf1.phi, cj1.eta, cj1.phi);
-    float delr2 = deltaR(pf2.eta, pf2.phi, cj2.eta, cj2.phi);
+    float delr1 = deltaR(cj1.eta, cj1.phi, pf1.eta, pf1.phi);
+    float delr2 = deltaR(cj2.eta, cj2.phi, pf2.eta, pf2.phi);
 
-    //float delpt1 = fabs(pf1.pt - cj1.pt);
-    //float delpt2 = fabs(pf2.pt - cj2.pt);
-    //return ((delpt1 < delpt2) && (delr1 < delr2) && (pf1.pt > pf2.pt) && cj1.pt > cj2.pt);
+    //float delpt1 = fabs(cj1.pt - pf1.pt);
+    //float delpt2 = fabs(cj2.pt - pf2.pt);
     
     return ((delr1 < delr2) && (cj1.pt > cj2.pt));
   }
@@ -94,15 +107,6 @@ const char *ccent[ncen] = {"0-5%","5-10%","10-30%","30-50%","50-70%","70-90%","9
 const int ncand=5;
 const char *ccand[ncand] = {"h^{#pm}","e^{#pm}","#mu^{#pm}","#gamma","h0"};
 
-//! constants
-int iYear=2015;
-#define pi 3.14159265
-
-const double ketacut=2.0;
-const double kptrawcut =0.0;
-const double kptrecocut=30.0;
-const double kdelrmatch=0.2;
-const double kdelrcut=0.3;
 
 //! pt binning
 double ptbins[] ={24, 28, 32, 37, 43, 49, 56, 64, 74, 84, 97, 
@@ -120,16 +124,18 @@ const double phibins[] = {-3.141,-2.100,-1.500,-0.800,-0.300,
 };
 const int nphi = sizeof(phibins)/sizeof(double) - 1;
 
-const double xsec[12][3] ={{2.034e-01,15  ,30}, //! 15                                                                    
-                           {1.075e-02,30  ,50}, //! 30                                                                    
-                           {1.025e-03,50  ,80}, //! 50                                                                    
-                           {9.865e-05,80  ,120}, //! 80                                                                   
-                           {1.129e-05,120 ,170}, //! 120                                                                  
-                           {1.465e-06,170 ,220}, //! 170                                                                  
-                           {2.837e-07,220 ,280}, //! 220                                                                  
-                           {5.323e-08,280 ,370}, //! 280                                                                  
-                           {5.934e-09,370 ,9999}, //! 370                                                                 
-                           {0.0000000,9999,9999}
+double xsec[12][3] ={{2.034e-01,15.  ,30.},   //! 15     0   
+		     {1.075e-02,30.  ,50.},   //! 30     1   
+		     {1.025e-03,50.  ,80.},   //! 50     2   
+		     {9.865e-05,80.  ,120.},  //! 80     3  
+		     {1.129e-05,120. ,170.},  //! 120    4  
+		     {1.465e-06,170. ,220.},  //! 170    5  
+		     {2.837e-07,220. ,280.},  //! 220    6  
+		     {5.323e-08,280. ,370.},  //! 280    7  
+		     {5.934e-09,370. ,460.},  //! 370    8 
+		     {8.125e-10,460. ,540.},  //! 460    9
+		     {1.467e-10,540. ,9999.}, //! 540    10
+		     {0.0000000,9999.,9999.}  //         11 
 };
 
 
@@ -144,52 +150,70 @@ const double xsec[12][3] ={{2.034e-01,15  ,30}, //! 15
 
 
 TStopwatch timer;
-const char *ksp="pbpb";
-int jetmatch(std::string kAlgName="akPu3",
-		std::string kDataset="data",
-		//std::string fileList="/mnt/hadoop/cms/store/user/dgulhan/PYTHIA_HYDJET_Track9_Jet30_Pyquen_DiJet_TuneZ2_Unquenched_Hydjet1p8_2760GeV_merged/HiForest_PYTHIA_HYDJET_pthat80_Track9_Jet30_matchEqR_merged_forest_0.root",
-		std::string fileList="/mnt/hadoop/cms/store/user/belt/HiForest_jet55or65or80_JetRAA_v1_final/HiForest_jet55or65or80_JetRAA_v1_lumi9_Part8.root,/mnt/hadoop/cms/store/user/belt/HiForest_jet55or65or80_JetRAA_v1_final/HiForest_jet55or65or80_JetRAA_v1_lumi9_Part80.root,/mnt/hadoop/cms/store/user/belt/HiForest_jet55or65or80_JetRAA_v1_final/HiForest_jet55or65or80_JetRAA_v1_lumi9_Part81.root",
-		//std::string foname="outputhisto_mc.root", 
-		std::string foname="outputhisto_data.root", 
-		double maxpthat=120
-		)
+
+int jetmatch(std::string kSpecies="pbpb",
+	     std::string kAlgName="akPu3",
+	     std::string kDataset="data",
+	     //! PbPb
+	     //std::string kFileList="/mnt/hadoop/cms/store/user/dgulhan/PYTHIA_HYDJET_Track9_Jet30_Pyquen_DiJet_TuneZ2_Unquenched_Hydjet1p8_2760GeV_merged/HiForest_PYTHIA_HYDJET_pthat370_Track9_Jet30_matchEqR_merged_forest_0.root",
+	     std::string kFileList="/mnt/hadoop/cms/store/user/belt/HiForest_jet55or65or80_JetRAA_v1_final/HiForest_jet55or65or80_JetRAA_v1_lumi9_Part8.root,/mnt/hadoop/cms/store/user/belt/HiForest_jet55or65or80_JetRAA_v1_final/HiForest_jet55or65or80_JetRAA_v1_lumi9_Part80.root,/mnt/hadoop/cms/store/user/belt/HiForest_jet55or65or80_JetRAA_v1_final/HiForest_jet55or65or80_JetRAA_v1_lumi9_Part81.root",
+
+	     //! pp
+	     //std::string kFileList="/mnt/hadoop/cms/store/user/velicanu/PPJet_ForestTag_PYTHIA_localdb_ppJEC_v29_hadd/0.root",
+
+	     //std::string kFoname="outputhisto_mc.root", 
+	     std::string kFoname="outputhisto_data.root", 
+
+	     double kMaxpthat=9999
+	     )
 {
   
   timer.Start();
 
+  std::cout << std::endl;
   bool printDebug=false;
 
+  if( kSpecies == "pbpb" && kDataset == "mc" ){
+    xsec[8][2]=9999; //! 370 in PbPb
+    xsec[9][0]=0.00000;  xsec[9][1]=9999;  xsec[9][2]=9999;
+  }
 
   //tr_jet = (TTree*)fin->Get("akPu3PFJetAnalyzer/t");
   TChain *tch_pfjet = new TChain(Form("%sPFJetAnalyzer/t",kAlgName.c_str()));
-  AddInputFiles(tch_pfjet,fileList,Form("%sPFJetAnalyzer/t",kAlgName.c_str()));
-  cout <<" # of events in PFJet Tree : " <<  tch_pfjet->GetEntries() <<endl;
+  AddInputFiles(tch_pfjet,kFileList,Form("%sPFJetAnalyzer/t",kAlgName.c_str()));
+  cout <<" # of events in PFJet   Tree : " <<  tch_pfjet->GetEntries() <<endl;
 
   //tr_jet = (TTree*)fin->Get("akPu3CaloJetAnalyzer/t");
   //TChain *tch_calojet = new TChain(Form("%sCaloJetAnalyzer/t",kAlgName.c_str()));
-  //AddInputFiles(tch_calojet,fileList,Form("%sCaloJetAnalyzer/t",kAlgName.c_str()));
-  TChain *tch_calojet = new TChain("akPu3CaloJetAnalyzer/t");
-  AddInputFiles(tch_calojet,fileList,"akPu3CaloJetAnalyzer/t");
-  cout <<" # of events in CaloJet Tree : " <<  tch_calojet->GetEntries() <<endl;
-
+  //AddInputFiles(tch_calojet,kFileList,Form("%sCaloJetAnalyzer/t",kAlgName.c_str()));
+  TChain *tch_calojet=0;
+  if( kSpecies == "pbpb" ){
+    tch_calojet = new TChain("akPu3CaloJetAnalyzer/t");
+    AddInputFiles(tch_calojet,kFileList,"akPu3CaloJetAnalyzer/t");
+    cout <<" # of events in CaloJet Tree : " <<  tch_calojet->GetEntries() <<endl;
+  }else{
+    tch_calojet = new TChain("ak3CaloJetAnalyzer/t");
+    AddInputFiles(tch_calojet,kFileList,"ak3CaloJetAnalyzer/t");
+    cout <<" # of events in CaloJet Tree : " <<  tch_calojet->GetEntries() <<endl;
+  }
   //tr_ev = (TTree*)fin->Get("hiEvtAnalyzer/HiTree");
   TChain *tch_ev = new TChain("hiEvtAnalyzer/HiTree");
-  AddInputFiles(tch_ev,fileList,"hiEvtAnalyzer/HiTree");
-  cout <<" # of events in Event Tree : " <<  tch_ev->GetEntries() <<endl;
+  AddInputFiles(tch_ev,kFileList,"hiEvtAnalyzer/HiTree");
+  cout <<" # of events in Event   Tree : " <<  tch_ev->GetEntries() <<endl;
 
   //tr_hlt = (TTree*)fin->Get("hltanalysis/HltTree");
   TChain *tch_hlt = new TChain("hltanalysis/HltTree");
-  AddInputFiles(tch_hlt,fileList,"hltanalysis/HltTree");
-  cout <<" # of events in HLT Tree : " <<  tch_hlt->GetEntries() <<endl;
+  AddInputFiles(tch_hlt,kFileList,"hltanalysis/HltTree");
+  cout <<" # of events in HLT     Tree : " <<  tch_hlt->GetEntries() <<endl;
 
   //tr_skim = (TTree*)fin->Get("skimanalysis/HltTree");
   TChain *tch_skim = new TChain("skimanalysis/HltTree");
-  AddInputFiles(tch_skim,fileList,"skimanalysis/HltTree");
-  cout <<" # of events in Skim Tree : " <<  tch_skim->GetEntries() <<endl;
+  AddInputFiles(tch_skim,kFileList,"skimanalysis/HltTree");
+  cout <<" # of events in Skim    Tree : " <<  tch_skim->GetEntries() <<endl;
 
   //tr_trobj = (TTree*)fin->Get("hltobject/jetObjTree");  
   // TChain *tch_trgobj = new TChain("hltobject/jetObjTree");
-  // AddInputFiles(tch_trgobj,fileList,"hltobject/jetObjTree");
+  // AddInputFiles(tch_trgobj,kFileList,"hltobject/jetObjTree");
   // cout <<" # of events in TrigObj Tree : " <<  tch_trgobj->GetEntries() <<endl;
   // cout <<endl;
 
@@ -211,19 +235,43 @@ int jetmatch(std::string kAlgName="akPu3",
 
 
   //! HLT tree
+  //! HI
   int jet55;
   int jet55_prescl;
   int jet65;
   int jet65_prescl;
   int jet80;
   int jet80_prescl;
-  tch_hlt->SetBranchAddress("HLT_HIJet55_v1",&jet55);
-  tch_hlt->SetBranchAddress("HLT_HIJet55_v1_Prescl",&jet55_prescl);
-  tch_hlt->SetBranchAddress("HLT_HIJet65_v1",&jet65);
-  tch_hlt->SetBranchAddress("HLT_HIJet65_v1_Prescl",&jet65_prescl);
-  tch_hlt->SetBranchAddress("HLT_HIJet80_v1",&jet80);
-  tch_hlt->SetBranchAddress("HLT_HIJet80_v1_Prescl",&jet80_prescl);
+  //! PP
+  int jet40;
+  int jet40_prescl;
+  int jet60;
+  int jet60_prescl;
 
+  if ( kSpecies == "pbpb" ){
+    if( kDataset == "data" ){
+      tch_hlt->SetBranchAddress("HLT_HIJet55_v1",&jet55);
+      tch_hlt->SetBranchAddress("HLT_HIJet55_v1_Prescl",&jet55_prescl);
+      tch_hlt->SetBranchAddress("HLT_HIJet65_v1",&jet65);
+      tch_hlt->SetBranchAddress("HLT_HIJet65_v1_Prescl",&jet65_prescl);
+      tch_hlt->SetBranchAddress("HLT_HIJet80_v1",&jet80);
+      tch_hlt->SetBranchAddress("HLT_HIJet80_v1_Prescl",&jet80_prescl);
+    }else{
+      tch_hlt->SetBranchAddress("HLT_HIJet55_v7",&jet55);
+      tch_hlt->SetBranchAddress("HLT_HIJet55_v7_Prescl",&jet55_prescl);
+      tch_hlt->SetBranchAddress("HLT_HIJet65_v7",&jet65);
+      tch_hlt->SetBranchAddress("HLT_HIJet65_v7_Prescl",&jet65_prescl);
+      tch_hlt->SetBranchAddress("HLT_HIJet80_v7",&jet80);
+      tch_hlt->SetBranchAddress("HLT_HIJet80_v7_Prescl",&jet80_prescl);
+    }
+  }else {
+    tch_hlt->SetBranchAddress("HLT_PAJet40_NoJetID_v1",&jet40);
+    tch_hlt->SetBranchAddress("HLT_PAJet40_NoJetID_v1_Prescl",&jet40_prescl);
+    tch_hlt->SetBranchAddress("HLT_PAJet60_NoJetID_v1",&jet60);
+    tch_hlt->SetBranchAddress("HLT_PAJet60_NoJetID_v1_Prescl",&jet60_prescl);
+    tch_hlt->SetBranchAddress("HLT_PAJet80_NoJetID_v1",&jet80);
+    tch_hlt->SetBranchAddress("HLT_PAJet80_NoJetID_v1_Prescl",&jet80_prescl);
+  }
   // int L1_sj36_1;
   // int L1_sj36_p_1;
   // int L1_sj52_1;
@@ -237,7 +285,8 @@ int jetmatch(std::string kAlgName="akPu3",
   //! Skim Tree
   int pcollisionEventSelection;
   int pHBHENoiseFilter;
-  tch_skim->SetBranchAddress("pcollisionEventSelection",&pcollisionEventSelection);
+  if( kSpecies == "pbpb" )tch_skim->SetBranchAddress("pcollisionEventSelection",&pcollisionEventSelection);
+  else tch_skim->SetBranchAddress("pPAcollisionEventSelectionPA",&pcollisionEventSelection);
   tch_skim->SetBranchAddress("pHBHENoiseFilter",&pHBHENoiseFilter);
 
   //! Trigger object tree
@@ -379,20 +428,38 @@ int jetmatch(std::string kAlgName="akPu3",
   // tch_pfjet->SetBranchStatus("eta",1,0);
   // tch_pfjet->SetBranchStatus("phi",1,0);
 
-  tch_pfjet->SetBranchStatus("HLT_HIJet55_v1",1,0);
-  tch_pfjet->SetBranchStatus("HLT_HIJet55_v1_Prescl",1,0);
-  tch_pfjet->SetBranchStatus("HLT_HIJet65_v1",1,0);
-  tch_pfjet->SetBranchStatus("HLT_HIJet65_v1_Prescl",1,0);
-  tch_pfjet->SetBranchStatus("HLT_HIJet80_v1",1,0);
-  tch_pfjet->SetBranchStatus("HLT_HIJet80_v1_Prescl",1,0);
-  // tch_pfjet->SetBranchStatus("L1_SingleJet36_BptxAND",1,0);
-  // tch_pfjet->SetBranchStatus("L1_SingleJet36_BptxAND_Prescl",1,0);
-  // tch_pfjet->SetBranchStatus("L1_SingleJet52_BptxAND",1,0);
-  // tch_pfjet->SetBranchStatus("L1_SingleJet52_BptxAND_Prescl",1,0);
-
-  tch_pfjet->SetBranchStatus("pcollisionEventSelection",1,0);
+  if( kSpecies == "pbpb" ){
+    if ( kDataset == "data" ){
+      tch_pfjet->SetBranchStatus("HLT_HIJet55_v1",1,0);
+      tch_pfjet->SetBranchStatus("HLT_HIJet55_v1_Prescl",1,0);
+      tch_pfjet->SetBranchStatus("HLT_HIJet65_v1",1,0);
+      tch_pfjet->SetBranchStatus("HLT_HIJet65_v1_Prescl",1,0);
+      tch_pfjet->SetBranchStatus("HLT_HIJet80_v1",1,0);
+      tch_pfjet->SetBranchStatus("HLT_HIJet80_v1_Prescl",1,0);
+      // tch_pfjet->SetBranchStatus("L1_SingleJet36_BptxAND",1,0);
+      // tch_pfjet->SetBranchStatus("L1_SingleJet36_BptxAND_Prescl",1,0);
+      // tch_pfjet->SetBranchStatus("L1_SingleJet52_BptxAND",1,0);
+      // tch_pfjet->SetBranchStatus("L1_SingleJet52_BptxAND_Prescl",1,0);
+    }else{
+      tch_pfjet->SetBranchStatus("HLT_HIJet55_v7",1,0);
+      tch_pfjet->SetBranchStatus("HLT_HIJet55_v7_Prescl",1,0);
+      tch_pfjet->SetBranchStatus("HLT_HIJet65_v7",1,0);
+      tch_pfjet->SetBranchStatus("HLT_HIJet65_v7_Prescl",1,0);
+      tch_pfjet->SetBranchStatus("HLT_HIJet80_v7",1,0);
+      tch_pfjet->SetBranchStatus("HLT_HIJet80_v7_Prescl",1,0);
+    }
+    tch_pfjet->SetBranchStatus("pcollisionEventSelection",1,0);
+  }else{
+    tch_pfjet->SetBranchStatus("HLT_PAJet40_NoJetID_v1",1,0);
+    tch_pfjet->SetBranchStatus("HLT_PAJet40_NoJetID_v1_Prescl",1,0);
+    tch_pfjet->SetBranchStatus("HLT_PAJet60_NoJetID_v1",1,0);
+    tch_pfjet->SetBranchStatus("HLT_PAJet60_NoJetID_v1_Prescl",1,0);
+    tch_pfjet->SetBranchStatus("HLT_PAJet80_NoJetID_v1",1,0);
+    tch_pfjet->SetBranchStatus("HLT_PAJet80_NoJetID_v1_Prescl",1,0);
+    tch_pfjet->SetBranchStatus("pPAcollisionEventSelectionPA",1,0);
+  }
   tch_pfjet->SetBranchStatus("pHBHENoiseFilter",1,0);
-
+  
   if( kDataset == "mc"){
     tch_pfjet->SetBranchStatus("pthat",1,0);    
     tch_pfjet->SetBranchStatus("subid" ,1,0);
@@ -403,35 +470,37 @@ int jetmatch(std::string kAlgName="akPu3",
   }
 
 
-  std::string outdir="";
-  std::string outname=outdir+foname;
-  TFile *fout = new TFile(outname.c_str(),"RECREATE");
-
-
-  std::cout<<"\t"<<std::endl;
-  std::cout<<"\t"<<std::endl;
-  std::cout<<"**************************************************** "<<std::endl;
-  std::cout<<Form("%s %s %s ",kDataset.c_str(), ksp, kAlgName.c_str())<<std::endl;
-  std::cout<<Form("Outfile : %s",outname.c_str())<<std::endl;
-  std::cout<<Form("pT cut : %0.3f ; eta cut :  %0.3f ",kptrecocut, ketacut)<<std::endl;
-  std::cout<<"**************************************************** "<<std::endl;
-  std::cout<<"\t"<<std::endl;
-  std::cout<<"\t"<<std::endl;
-
+  
   //! Vertex re-weighting 
   TF1 *fVz=0;
   fVz = new TF1("fVz","[0]+[1]*x+[2]*x*x+[3]*x*x*x+[4]*x*x*x*x");
   fVz->SetParameters(9.86748e-01, -8.91367e-03, 5.35416e-04, 2.67665e-06, -2.01867e-06);
 
+  //! Centrality re-weighting 
   TH1F *hCentWeight = new TH1F("hCentWeight","Centrality weight",200,0,200);
   GetCentWeight(hCentWeight);
 
+  //! Create output file
+  std::string outdir="";
+  std::string outfile=outdir+kFoname;
+  TFile *fout = new TFile(outfile.c_str(),"RECREATE");
+
+  std::cout<<"\t"<<std::endl;
+  std::cout<<"\t"<<std::endl;
+  std::cout<<"**************************************************** "<<std::endl;
+  std::cout<<Form("Dataset : %s, Species : %s, Jet Algorithm :  %s ",kDataset.c_str(), kSpecies.c_str(), kAlgName.c_str())<<std::endl;
+  std::cout<<Form("Outfile : %s",outfile.c_str())<<std::endl;
+  std::cout<<Form("vertex z (c.m.) cut : %0.3f ",kvzcut)<<std::endl;
+  std::cout<<Form("Reco pT cut : %0.3f ; Reco eta cut : %0.3f ",kptrecocut, ketacut)<<std::endl;
+  std::cout<<Form("CALO-PF jet matching delta R cut   : %0.3f ",kdelrmatch)<<std::endl;
+  std::cout<<"**************************************************** "<<std::endl;
+  std::cout<<"\t"<<std::endl;
+  std::cout<<"\t"<<std::endl;
 
   //! 
   //! Define histograms here
   fout->mkdir(Form("%sJetAnalyzer",kAlgName.c_str()));
   fout->cd(Form("%sJetAnalyzer"   ,kAlgName.c_str()));
-
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////
   Float_t deltar;
@@ -448,14 +517,20 @@ int jetmatch(std::string kAlgName="akPu3",
   Float_t weight;
   Float_t refpt, refeta, refphi, refdrjt; 
 
-  TTree* matchJets = new TTree("matchJets","Ntuple containing important information about matched jets");
+  TTree* matchJets = new TTree("matchedJets","Ntuple containing important information about matched jets");
   matchJets->Branch("hiBin",&hiBin,"hiBin/I");
   matchJets->Branch("run_value",&run_value,"run_value/I");
   matchJets->Branch("evt_value",&evt_value,"evt_value/I");
   matchJets->Branch("lumi_value",&lumi_value,"lumi_value/I");
-  matchJets->Branch("jet80",&jet80,"jet80/I"); matchJets->Branch("jet80_prescl",&jet80_prescl,"jet80_prescl/I");
-  matchJets->Branch("jet65",&jet65,"jet65/I"); matchJets->Branch("jet65_prescl",&jet65_prescl,"jet65_prescl/I");
-  matchJets->Branch("jet55",&jet55,"jet55/I"); matchJets->Branch("jet55_prescl",&jet55_prescl,"jet55_prescl/I");
+  if( kSpecies == "pbpb" ){
+    matchJets->Branch("jet80",&jet80,"jet80/I"); matchJets->Branch("jet80_prescl",&jet80_prescl,"jet80_prescl/I");
+    matchJets->Branch("jet65",&jet65,"jet65/I"); matchJets->Branch("jet65_prescl",&jet65_prescl,"jet65_prescl/I");
+    matchJets->Branch("jet55",&jet55,"jet55/I"); matchJets->Branch("jet55_prescl",&jet55_prescl,"jet55_prescl/I");
+  }else{
+    matchJets->Branch("jet80",&jet80,"jet80/I"); matchJets->Branch("jet80_prescl",&jet80_prescl,"jet80_prescl/I");
+    matchJets->Branch("jet60",&jet60,"jet60/I"); matchJets->Branch("jet60_prescl",&jet60_prescl,"jet60_prescl/I");
+    matchJets->Branch("jet40",&jet40,"jet40/I"); matchJets->Branch("jet40_prescl",&jet40_prescl,"jet40_prescl/I");
+  }
   matchJets->Branch("vz",&vz,"vz/F");
   matchJets->Branch("deltar",&deltar,"deltar/F"); 
   matchJets->Branch("calopt",&calopt,"calopt/F");    matchJets->Branch("pfpt",&pfpt,"pfpt/F");       
@@ -478,14 +553,20 @@ int jetmatch(std::string kAlgName="akPu3",
     matchJets->Branch("refdrjt",&refdrjt,"refdrjt/F");       
   }
 
-  TTree* unmatchPFJets = new TTree("unmatchPFJets","Ntuple containing important information about unmatched PF jets");
+  TTree* unmatchPFJets = new TTree("unmatchedPFJets","Ntuple containing important information about unmatched PF jets");
   unmatchPFJets->Branch("hiBin",&hiBin,"hiBin/I");
   unmatchPFJets->Branch("run_value",&run_value,"run_value/I");
   unmatchPFJets->Branch("evt_value",&evt_value,"evt_value/I");
   unmatchPFJets->Branch("lumi_value",&lumi_value,"lumi_value/I");
-  unmatchPFJets->Branch("jet80",&jet80,"jet80/I"); unmatchPFJets->Branch("jet80_prescl",&jet80_prescl,"jet80_prescl/I");
-  unmatchPFJets->Branch("jet65",&jet65,"jet65/I"); unmatchPFJets->Branch("jet65_prescl",&jet65_prescl,"jet65_prescl/I");
-  unmatchPFJets->Branch("jet55",&jet55,"jet55/I"); unmatchPFJets->Branch("jet55_prescl",&jet55_prescl,"jet55_prescl/I");
+  if( kDataset == "pbpb" ){
+    unmatchPFJets->Branch("jet80",&jet80,"jet80/I"); unmatchPFJets->Branch("jet80_prescl",&jet80_prescl,"jet80_prescl/I");
+    unmatchPFJets->Branch("jet65",&jet65,"jet65/I"); unmatchPFJets->Branch("jet65_prescl",&jet65_prescl,"jet65_prescl/I");
+    unmatchPFJets->Branch("jet55",&jet55,"jet55/I"); unmatchPFJets->Branch("jet55_prescl",&jet55_prescl,"jet55_prescl/I");
+  }else{
+    unmatchPFJets->Branch("jet80",&jet80,"jet80/I"); unmatchPFJets->Branch("jet80_prescl",&jet80_prescl,"jet80_prescl/I");
+    unmatchPFJets->Branch("jet60",&jet60,"jet60/I"); unmatchPFJets->Branch("jet60_prescl",&jet60_prescl,"jet60_prescl/I");
+    unmatchPFJets->Branch("jet40",&jet40,"jet40/I"); unmatchPFJets->Branch("jet40_prescl",&jet40_prescl,"jet40_prescl/I");
+  }
   unmatchPFJets->Branch("vz",&vz,"vz/F");
   unmatchPFJets->Branch("pfpt",&pfpt,"pfpt/F");       
   unmatchPFJets->Branch("pfrawpt",&pfrawpt,"pfrawpt/F");       
@@ -506,14 +587,20 @@ int jetmatch(std::string kAlgName="akPu3",
     unmatchPFJets->Branch("refdrjt",&refdrjt,"refdrjt/F");       
   }
 
-  TTree* unmatchCaloJets = new TTree("unmatchCaloJets","Ntuple containing important information about unmatched Calo jets");
+  TTree* unmatchCaloJets = new TTree("unmatchedCaloJets","Ntuple containing important information about unmatched Calo jets");
   unmatchCaloJets->Branch("hiBin",&hiBin,"hiBin/I");
   unmatchCaloJets->Branch("run_value",&run_value,"run_value/I");
   unmatchCaloJets->Branch("evt_value",&evt_value,"evt_value/I");
   unmatchCaloJets->Branch("lumi_value",&lumi_value,"lumi_value/I");
-  unmatchCaloJets->Branch("jet80",&jet80,"jet80/I"); unmatchCaloJets->Branch("jet80_prescl",&jet80_prescl,"jet80_prescl/I");
-  unmatchCaloJets->Branch("jet65",&jet65,"jet65/I"); unmatchCaloJets->Branch("jet65_prescl",&jet65_prescl,"jet65_prescl/I");
-  unmatchCaloJets->Branch("jet55",&jet55,"jet55/I"); unmatchCaloJets->Branch("jet55_prescl",&jet55_prescl,"jet55_prescl/I");
+  if ( kSpecies == "pbpb" ){
+    unmatchCaloJets->Branch("jet80",&jet80,"jet80/I"); unmatchCaloJets->Branch("jet80_prescl",&jet80_prescl,"jet80_prescl/I");
+    unmatchCaloJets->Branch("jet65",&jet65,"jet65/I"); unmatchCaloJets->Branch("jet65_prescl",&jet65_prescl,"jet65_prescl/I");
+    unmatchCaloJets->Branch("jet55",&jet55,"jet55/I"); unmatchCaloJets->Branch("jet55_prescl",&jet55_prescl,"jet55_prescl/I");
+  }else{
+    unmatchCaloJets->Branch("jet80",&jet80,"jet80/I"); unmatchCaloJets->Branch("jet80_prescl",&jet80_prescl,"jet80_prescl/I");
+    unmatchCaloJets->Branch("jet60",&jet60,"jet60/I"); unmatchCaloJets->Branch("jet60_prescl",&jet60_prescl,"jet60_prescl/I");
+    unmatchCaloJets->Branch("jet40",&jet40,"jet40/I"); unmatchCaloJets->Branch("jet40_prescl",&jet40_prescl,"jet40_prescl/I");
+  }
   unmatchCaloJets->Branch("vz",&vz,"vz/F");
   unmatchCaloJets->Branch("calopt",&calopt,"calopt/F");
   unmatchCaloJets->Branch("calorawpt",&calorawpt,"calorawpt/F");
@@ -540,24 +627,32 @@ int jetmatch(std::string kAlgName="akPu3",
   hEvents_Vzcut->Sumw2();
   TH1F *hEvents_Cent = new TH1F("hEvents_Cent","Cent # of events ",10,0.,1.);
   hEvents_Cent->Sumw2();
+  TH1F *hEvents_bad = new TH1F("hEvents_bad","bad # of events ",10,0.,1.);
+  hEvents_bad->Sumw2();
+  TH1F *hEvents_supernova = new TH1F("hEvents_supernova","supernova # of events ",10,0.,1.);
+  hEvents_supernova->Sumw2();
+  TH1F *hEvents_nopfcalo = new TH1F("hEvents_nopfcalo","nopfcalo # of events ",10,0.,1.);
+  hEvents_nopfcalo->Sumw2();
+  TH1F *hEvents_maxpthat = new TH1F("hEvents_maxpthat","maxpthat # of events ",10,0.,1.);
+  hEvents_maxpthat->Sumw2();
   fout->cd("../");
   ////////////////////////////////////////////////////////////////////////////////////////////////////////
   std::cout<<"Initialized the histograms " <<std::endl;
 
   Long64_t nbytes=0;
   Long64_t nentries = tch_pfjet->GetEntries();
-  std::cout<<Form("# of entries in TTree for %s %s : ",kAlgName.c_str(),ksp)<<nentries<<std::endl;
+  std::cout<<Form("# of entries in TTree for %s %s : ",kAlgName.c_str(),kSpecies.c_str())<<nentries<<std::endl;
 
   weight=1.;
   double wxs=1.;
   if( kDataset == "mc" ){
     TEventList* el = new TEventList("el","el");
-    stringstream selection; selection<<"pthat<="<<maxpthat;
+    stringstream selection; selection<<"pthat<="<<kMaxpthat;
     tch_pfjet->Draw(">>el",selection.str().c_str());
     double fentries = (double)el->GetN();
     std::cout<<"tree entries  :  "<<kAlgName.c_str()<<" algorithm : " << nentries<<" elist: "<< fentries <<std::endl;
     delete el;
-    double tmpw = GetXsec(maxpthat);
+    double tmpw = GetXsec(kMaxpthat);
     wxs = tmpw/(fentries/100000.);
   }
 
@@ -565,7 +660,7 @@ int jetmatch(std::string kAlgName="akPu3",
   for (Long64_t i=0; i<nentries;i++) {
     nbytes += tch_pfjet->GetEntry(i);
 
-    if(printDebug && i==20)break;
+    if(printDebug && i==50)break;
 
     float rndm=gRandom->Rndm();
 
@@ -573,47 +668,60 @@ int jetmatch(std::string kAlgName="akPu3",
 
     if(pcollisionEventSelection)hEvents_pCollEvent->Fill(rndm);
     if(pcollisionEventSelection && pHBHENoiseFilter)hEvents_pHBHENoise->Fill(rndm);
-    if(pcollisionEventSelection && pHBHENoiseFilter && fabs(vz)<15. )hEvents_Vzcut->Fill(rndm);
-    if(pcollisionEventSelection==0 || pHBHENoiseFilter==0 || fabs(vz) > 15.)continue;
-
+    if(pcollisionEventSelection && pHBHENoiseFilter && fabs(vz)<kvzcut )hEvents_Vzcut->Fill(rndm);
+    if(pcollisionEventSelection==0 || pHBHENoiseFilter==0 || fabs(vz) > kvzcut){
+      hEvents_bad->Fill(rndm);
+      continue;
+    }
     //if(!jet55_1 || !jet65_1 || !jet80_1)continue;
     
     int iCent = GetCentBin(hiBin);
     if(iCent<0 || iCent>=ncen)continue;
 
-    //! SuperNovae events use calo jets
-    //int lowjetCounter=0;
-    int jetCounter=0;
-    for(int g = 0;g<nref_calo;g++){
-      // if( fabs(jteta_calo[g]) < 2. && jtpt_calo[g]>=kptrecocut ){ //to select inside
-      // 	lowjetCounter++;
-      // }
-      if( fabs(jteta_calo[g]) < 2. && jtpt_calo[g]>=50. ){ //to select inside
-	jetCounter++;
-      }//eta selection cut
-    }// jet loop
+    if ( kSpecies == "pbpb" ){
+      //! SuperNovae events use calo jets
+      //int lowjetCounter=0;
+      int jetCounter=0;
+      for(int g = 0;g<nref_calo;g++){
+	// if( fabs(jteta_calo[g]) < 2. && jtpt_calo[g]>=kptrecocut ){ //to select inside
+	// 	lowjetCounter++;
+	// }
+	if( fabs(jteta_calo[g]) < 2. && jtpt_calo[g]>=50. ){ //to select inside
+	  jetCounter++;
+	}//eta selection cut
+      }// jet loop
+      // apply the correct supernova selection cut rejection here:
+      if( hiNpix > 38000 - 500*jetCounter ){
+	hEvents_supernova->Fill(rndm);
+	continue;
+      }
+    }
 
-    // apply the correct supernova selection cut rejection here:
-    if( hiNpix > 38000 - 500*jetCounter )continue;
-    if( nref==0 && nref_calo==0 )continue;
+    if( nref==0 && nref_calo==0 ){
+      hEvents_nopfcalo->Fill(rndm);
+      continue;
+    }
     //if( lowjetCounter == 0 )continue;
 
-    if( kDataset == "mc" && pthat > maxpthat )continue;
-
+    if( kDataset == "mc" && pthat > kMaxpthat ){
+      hEvents_maxpthat->Fill(rndm);
+      continue;
+    }
     hEvents_Cent->Fill(rndm);
 
     if(printDebug)std::cout << "------------------------------------Start Event # " << i <<"------------------------------------------------------------------ " << std::endl;
     //std::cout<<" ***** Event # " <<i<<"\t vz  : "<<vz<<"\t hiBin : "<<hiBin<<"\t  # of PF jets "<<nref<<" # of calojets  "<<nref_calo<<std::endl;
     if(i%50000==0)std::cout<<" ********** Event # " <<i<<"\t vz  : "<<vz<<"\t hiBin : "<<hiBin<<"\t  # of PF jets "<<nref<< "  # of Calo jets " <<nref_calo<<std::endl;
-
+    
     int pfjets=0;
     int calojets=0;
-
+    
     std::vector <Jet> vPFJets, vCaloJets;
     std::vector <int> pfid(nref), caloid(nref_calo);
 
+    if(printDebug)std::cout << " PF jets : " << std::endl;
     for(int pj=0; pj<nref; pj++){ //! PFjet
-
+      
       if( rawpt[pj] < kptrawcut || jtpt[pj] < kptrecocut ) continue;
       if( fabs(jteta[pj]) > ketacut ) continue;
 
@@ -629,14 +737,17 @@ int jetmatch(std::string kAlgName="akPu3",
       pfj.pt  = jtpt [pj];
 
       if(printDebug){
-	std::cout << " PF jets : " << std::endl;
-	if( kDataset == "mc" )std::cout <<"\t" << pj << "  pt : " << jtpt[pj] << " eta : "  << jteta[pj] << " subid : " << sid[pj] << std::endl;
-	else std::cout <<"\t"<< pj << "  pt : " << jtpt[pj] << " eta : "  << jteta[pj] << std::endl;
+	if( kDataset == "mc" )std::cout <<"\t" << pj << "  pt : " << jtpt[pj] << " eta : "  << jteta[pj] << " phi : " << jtphi[pj] << " subid : " << sid[pj] << std::endl;
+	else std::cout <<"\t"<< pj << "  pt : " << jtpt[pj] << " eta : "  << jteta[pj] << " phi : " << jtphi[pj] << std::endl;
       }
       vPFJets.push_back(pfj);
       pfjets++;
     }    
-    if(printDebug)std::cout << std::endl;
+
+    if(printDebug){
+      std::cout << std::endl;
+      std::cout << " Calo jets : " << std::endl;
+    }
     for(int cj=0; cj<nref_calo; cj++){ //! CaloJet
       
       if( rawpt_calo[cj] < kptrawcut || jtpt_calo[cj] < kptrecocut) continue;
@@ -653,20 +764,19 @@ int jetmatch(std::string kAlgName="akPu3",
       clj.pt  = jtpt_calo[cj];
 
       if(printDebug){
-	std::cout << " Calo jets : " << std::endl;
-	if( kDataset == "mc" )std::cout <<"\t" << cj << "  pt : " << jtpt_calo[cj] << " eta : "  << jteta_calo[cj] << " subid : " << sid_calo[cj] << std::endl;
-	else  std::cout <<"\t" << cj << "  pt : " << jtpt_calo[cj] << " eta : "  << jteta_calo[cj] << std::endl;
+	if( kDataset == "mc" )std::cout <<"\t" << cj << "  pt : " << jtpt_calo[cj] << " eta : "  << jteta_calo[cj] << " phi : " << jtphi_calo[cj] << " subid : " << sid_calo[cj] << std::endl;
+	else  std::cout <<"\t" << cj << "  pt : " << jtpt_calo[cj] << " eta : "  << jteta_calo[cj] << " phi : " << jtphi_calo[cj] << std::endl;
       }
       vCaloJets.push_back(clj);
       calojets++;
     }//! calo jet loop
-
     if(printDebug)std::cout << std::endl;
     if(pfjets==0 && calojets==0){
       if(printDebug){
 	std::cout <<" XXXXXXXXXXX  No Calo and PF jets passed the cuts " << std::endl;
 	std::cout << "------------------------------------End Event # " << i <<"------------------------------------------------------------------ " << "\n"<<std::endl;
       }
+      hEvents_nopfcalo->Fill(rndm);
       continue;
     }
 
@@ -682,13 +792,12 @@ int jetmatch(std::string kAlgName="akPu3",
     if( kDataset == "mc" ){
       double wvz  = fVz->Eval(vz);
       double wcen = hCentWeight->GetBinContent(hCentWeight->FindBin(hiBin));
-      tmpwt = (wxs*wvz*wcen);
+      if ( kSpecies == "pbpb" )tmpwt = (wxs*wvz*wcen);
+      else tmpwt = wxs;
     }else tmpwt = 1.;
 
-    if(printDebug){
-      std::cout <<" Total # of PF jets : " << pfjets << " Total # of calojets : "  << calojets <<"\n"<<std::endl;
-      std::cout << std::endl;    
-    }
+    if(printDebug)std::cout <<" Total ==>  # of PF jets : " << pfjets << ", # of calojets : "  << calojets <<"\n"<<std::endl;
+
     std::vector < Jet >::const_iterator iJet, jJet;
 
     if( onlyPF ){
@@ -728,7 +837,7 @@ int jetmatch(std::string kAlgName="akPu3",
 	  refphi = pfrefphi[pj];
 	  refdrjt=pfrefdrjt[pj];
 	}
-	if(printDebug)std::cout <<" unmatched pf jets w ncalo=0 : " << unmatchedPFJets << "  pt : " << jtpt[pj] << " eta : "  << jteta[pj] << std::endl;
+	if(printDebug)std::cout <<" unmatched PF jets w ncalo=0 : " << unmatchedPFJets << "  pt : " << jtpt[pj] << " eta : "  << jteta[pj] << " phi : " << jtphi[pj] << std::endl;
     	unmatchedPFJets++;
     	unmatchPFJets->Fill();
       }
@@ -757,7 +866,7 @@ int jetmatch(std::string kAlgName="akPu3",
 	  refphi = refphi_calo[cj];
 	  refdrjt=refdrjt_calo[cj];
 	}
-	if(printDebug)std::cout <<" unmatched calo jets w npf=0 : " << unmatchedCaloJets << "  pt : " << jtpt_calo[cj] << " eta : "  << jteta_calo[cj] << std::endl;	
+	if(printDebug)std::cout <<" unmatched CALO jets w npf=0 : " << unmatchedCaloJets << "  pt : " << jtpt_calo[cj] << " eta : "  << jteta_calo[cj] << " phi : " << jtphi_calo[cj] <<std::endl;
     	unmatchedCaloJets++;
     	unmatchCaloJets->Fill();
       }
@@ -771,19 +880,19 @@ int jetmatch(std::string kAlgName="akPu3",
 	  
 	  mCaloPFMatchedJets.insert(std::make_pair(*iJet,*jJet));
 	  
-	}//! PF jet loop
-      }//! Calo jet loop
-
+	}//! calo jet loop
+      }//! PF jet loop
+      
       CPFItr itr;
-      //! Matched jets (Calo jet matched to PF jet)
+      //! Matched jets (PF jet matched to Calo jet)
       for(itr = mCaloPFMatchedJets.begin(); itr != mCaloPFMatchedJets.end(); ++itr){
 
 	CaloPFJetPair jetpair = (*itr);
 	Jet clj = jetpair.first;
 	Jet pfj = jetpair.second;
 
-	float delr  = deltaR(pfj.eta, pfj.phi, clj.eta, clj.phi);
-	//float delpt = fabs(pfj.pt - clj.pt);
+	float delr  = deltaR(clj.eta, clj.phi, pfj.eta, pfj.phi);
+	//float delpt = fabs(clj.pt - pfj.pt);
 	if( delr < kdelrmatch && caloid[clj.id]==0 ){
 	
 	  deltar = delr;
@@ -813,7 +922,6 @@ int jetmatch(std::string kAlgName="akPu3",
 	
 	  hcalSum = hcalSum_pf[clj.id];
 	  ecalSum = ecalSum_pf[clj.id];
-	  
 
 	  if( kDataset == "mc" ){
 	    weight = tmpwt;
@@ -824,7 +932,7 @@ int jetmatch(std::string kAlgName="akPu3",
 	    refdrjt=pfrefdrjt[pfj.id];
 	  }
 
-	  if(printDebug)std::cout <<"\t *** Matched jet " << " id : " << pfj.id << " " << clj.id << " pfpt :  " << pfj.pt << " calopt : " << clj.pt <<std::endl;
+	  if(printDebug)std::cout <<"\t *** Matched" << " id : " << pfj.id << " " << clj.id << " pfpt :  " << pfj.pt << " calopt : " << clj.pt <<std::endl;
 	  
 	  matchedJets++;	  
 	  matchJets->Fill();
@@ -877,7 +985,7 @@ int jetmatch(std::string kAlgName="akPu3",
 	    refdrjt= pfrefdrjt[pfj.id]; 
 	  }
 
-	  if(printDebug)std::cout <<"\t %%%  UnMatched PF   jet " << " id     : " << pfj.id << " pfpt :  " << pfj.pt << std::endl;
+	  if(printDebug)std::cout <<"\t %%% UnMatched PF" << " id  : " << pfj.id << " pfpt :  " << pfj.pt << std::endl;
 	  
 	  unmatchedPFJets++;	  	  
 	  unmatchPFJets->Fill();
@@ -904,7 +1012,7 @@ int jetmatch(std::string kAlgName="akPu3",
 	    refdrjt= refdrjt_calo[clj.id];
 	  }
 
-	  if(printDebug)std::cout <<"\t XXX  UnMatched Calo jet " << " id     : " << clj.id  << " calopt : " << clj.pt << std::endl;
+	  if(printDebug)std::cout <<"\t XXX UnMatched Calo" << " id : " << clj.id  << " calopt : " << clj.pt << std::endl;
 	
 	  unmatchedCaloJets++;	  	  
 	  unmatchCaloJets->Fill();
@@ -918,12 +1026,10 @@ int jetmatch(std::string kAlgName="akPu3",
       else if( onlyCalo )std::cout<<" ****** Only Calo   Event # " <<i;/*<<" vz  : "<<vz<<" hiBin : "<<hiBin;*/
       else if( onlyPF   )std::cout<<" ****** Only PF     Event # " <<i;/*<<" vz  : "<<vz<<" hiBin : "<<hiBin;*/
       std::cout << " " 
-	   <<" All PF  " << nref <<" CALO  "<< nref_calo << ";"  
-	   <<" After cut PF : " << pfjets << " Calo : "  << calojets << ";"
-	   <<" mjets : "<<  matchedJets 
-	   <<" umPF  : "<<  unmatchedPFJets 
-	   <<" umCalo: "<<  unmatchedCaloJets 
-	   <<std::endl;
+		<<" All ==> PF : " << nref <<", CALO : "<< nref_calo << ";"  
+		<<" After cut ==> PF : " << pfjets << ", Calo : "  << calojets << ";"
+		<<" mCALOPF : "<< matchedJets <<", unmPF : "<<  unmatchedPFJets <<", unmCalo : "<<  unmatchedCaloJets 
+		<<std::endl;
       std::cout << "------------------------------------End Event # " << i <<"------------------------------------------------------------------ " << "\n"<<std::endl;
     }
   }//! event loop ends
@@ -1240,5 +1346,5 @@ void AddInputFiles(TChain *tch, string inputname, string inputTree)
     string stree = sFile+"/"+inputTree;
     tch->Add(stree.c_str());
   }
-  cout<<endl;
+  //  cout<<endl;
 }
