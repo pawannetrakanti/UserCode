@@ -160,10 +160,9 @@ int jetmatch(std::string kSpecies="pbpb",
 
 	     //! pp
 	     //std::string kFileList="/mnt/hadoop/cms/store/user/velicanu/PPJet_ForestTag_PYTHIA_localdb_ppJEC_v29_hadd/0.root",
-
+	     //std::string kFileList="/mnt/hadoop/cms/store/user/velicanu/PPJet_ForestTag_PYTHIA_localdb_ppJEC_v29_hadd/0.root",
 	     //std::string kFoname="outputhisto_mc.root", 
 	     std::string kFoname="outputhisto_data.root", 
-
 	     double kMaxpthat=9999
 	     )
 {
@@ -558,7 +557,7 @@ int jetmatch(std::string kSpecies="pbpb",
   unmatchPFJets->Branch("run_value",&run_value,"run_value/I");
   unmatchPFJets->Branch("evt_value",&evt_value,"evt_value/I");
   unmatchPFJets->Branch("lumi_value",&lumi_value,"lumi_value/I");
-  if( kDataset == "pbpb" ){
+  if( kSpecies == "pbpb" ){
     unmatchPFJets->Branch("jet80",&jet80,"jet80/I"); unmatchPFJets->Branch("jet80_prescl",&jet80_prescl,"jet80_prescl/I");
     unmatchPFJets->Branch("jet65",&jet65,"jet65/I"); unmatchPFJets->Branch("jet65_prescl",&jet65_prescl,"jet65_prescl/I");
     unmatchPFJets->Branch("jet55",&jet55,"jet55/I"); unmatchPFJets->Branch("jet55_prescl",&jet55_prescl,"jet55_prescl/I");
@@ -635,6 +634,39 @@ int jetmatch(std::string kSpecies="pbpb",
   hEvents_nopfcalo->Sumw2();
   TH1F *hEvents_maxpthat = new TH1F("hEvents_maxpthat","maxpthat # of events ",10,0.,1.);
   hEvents_maxpthat->Sumw2();
+
+  TH1F *hEvents_jet40 = new TH1F("hEvents_jet40","# of events jet40",10,0.,1.);
+  hEvents_jet40->Sumw2();
+  TH1F *hEvents_jet60 = new TH1F("hEvents_jet60","# of events jet60",10,0.,1.);
+  hEvents_jet60->Sumw2();
+  TH1F *hEvents_jet55 = new TH1F("hEvents_jet55","# of events jet55",10,0.,1.);
+  hEvents_jet55->Sumw2();
+  TH1F *hEvents_jet65 = new TH1F("hEvents_jet65","# of events jet65",10,0.,1.);
+  hEvents_jet65->Sumw2();
+  TH1F *hEvents_jet80 = new TH1F("hEvents_jet80","# of events jet80",10,0.,1.);
+  hEvents_jet80->Sumw2();
+
+  TH1F *hEvents_jet40_nojet60_nojet80 = new TH1F("hEvents_jet40_nojet60_nojet80","# of events jet40 && !jet60 && !jet80",10,0.,1.);
+  hEvents_jet40_nojet60_nojet80->Sumw2();
+  TH1F *hEvents_jet60_nojet80 = new TH1F("hEvents_jet60_nojet80","# of events jet60 && !jet80",10,0.,1.);
+  hEvents_jet60_nojet80->Sumw2();
+
+  TH2F *hEvents_jet40_prescl = new TH2F("hEvents_jet40_prescl","prescaled # of events jet40",50,-0.5,50-0.5,10,0.,1.);
+  hEvents_jet40_prescl->Sumw2();
+  TH2F *hEvents_jet60_prescl = new TH2F("hEvents_jet60_prescl","prescaled # of events jet60",50,-0.5,50-0.5,10,0.,1.);
+  hEvents_jet60_prescl->Sumw2();				
+  TH2F *hEvents_jet55_prescl = new TH2F("hEvents_jet55_prescl","prescaled # of events jet55",50,-0.5,50-0.5,10,0.,1.);
+  hEvents_jet55_prescl->Sumw2();				
+  TH2F *hEvents_jet65_prescl = new TH2F("hEvents_jet65_prescl","prescaled # of events jet65",50,-0.5,50-0.5,10,0.,1.);
+  hEvents_jet65_prescl->Sumw2();				
+  TH2F *hEvents_jet80_prescl = new TH2F("hEvents_jet80_prescl","prescaled # of events jet80",50,-0.5,50-0.5,10,0.,1.);
+  hEvents_jet80_prescl->Sumw2();
+  
+  TH1F *hEvents_jet55_nojet65_nojet80 = new TH1F("hEvents_jet55_nojet65_nojet80","# of events jet55 && !jet65 && !jet80",10,0.,1.);
+  hEvents_jet55_nojet65_nojet80->Sumw2();
+  TH1F *hEvents_jet65_nojet80 = new TH1F("hEvents_jet65_nojet80","# of events jet60 && !jet80",10,0.,1.);
+  hEvents_jet65_nojet80->Sumw2();
+
   fout->cd("../");
   ////////////////////////////////////////////////////////////////////////////////////////////////////////
   std::cout<<"Initialized the histograms " <<std::endl;
@@ -665,14 +697,47 @@ int jetmatch(std::string kSpecies="pbpb",
     float rndm=gRandom->Rndm();
 
     hEvents_Total->Fill(rndm);
+    if( kSpecies == "pp" ){
+      if(jet40)hEvents_jet40->Fill(rndm);
+      if(jet40_prescl)hEvents_jet40_prescl->Fill(jet40_prescl,rndm);
+      if(jet60)hEvents_jet60->Fill(rndm);
+      if(jet60_prescl)hEvents_jet60_prescl->Fill(jet60_prescl,rndm);
+      if(jet80)hEvents_jet80->Fill(rndm);
+      if(jet80_prescl)hEvents_jet80_prescl->Fill(jet80_prescl,rndm);
 
-    if(pcollisionEventSelection)hEvents_pCollEvent->Fill(rndm);
-    if(pcollisionEventSelection && pHBHENoiseFilter)hEvents_pHBHENoise->Fill(rndm);
-    if(pcollisionEventSelection && pHBHENoiseFilter && fabs(vz)<kvzcut )hEvents_Vzcut->Fill(rndm);
-    if(pcollisionEventSelection==0 || pHBHENoiseFilter==0 || fabs(vz) > kvzcut){
-      hEvents_bad->Fill(rndm);
-      continue;
+      if(jet40==1 && jet60==0 && jet80==0)hEvents_jet40_nojet60_nojet80->Fill(rndm);
+      if(jet60==1 && jet80==0)hEvents_jet60_nojet80->Fill(rndm);
+    }else{
+      if(jet55)hEvents_jet55->Fill(rndm);
+      if(jet55_prescl)hEvents_jet55_prescl->Fill(jet55_prescl,rndm);
+      if(jet65)hEvents_jet65->Fill(rndm);
+      if(jet65_prescl)hEvents_jet65_prescl->Fill(jet65_prescl,rndm);
+      if(jet80)hEvents_jet80->Fill(rndm);
+      if(jet80_prescl)hEvents_jet80_prescl->Fill(jet80_prescl,rndm);
+
+      if(jet55==1 && jet65==0 && jet80==0)hEvents_jet55_nojet65_nojet80->Fill(rndm);
+      if(jet65==1 && jet80==0)hEvents_jet65_nojet80->Fill(rndm);
     }
+
+    if( kDataset == "data" ){
+      if(pcollisionEventSelection)hEvents_pCollEvent->Fill(rndm);
+      if(pcollisionEventSelection && pHBHENoiseFilter)hEvents_pHBHENoise->Fill(rndm);
+      if(pcollisionEventSelection && pHBHENoiseFilter && fabs(vz)<kvzcut )hEvents_Vzcut->Fill(rndm);
+      if(pcollisionEventSelection==0 || pHBHENoiseFilter==0 || fabs(vz) > kvzcut){
+	hEvents_bad->Fill(rndm);
+	continue;
+      }
+    }else if( kDataset == "mc" ){//! HBHENoiseFilter
+      if(pcollisionEventSelection)hEvents_pCollEvent->Fill(rndm);
+      if(pcollisionEventSelection)hEvents_pHBHENoise->Fill(rndm);
+      if(pcollisionEventSelection && fabs(vz)<kvzcut )hEvents_Vzcut->Fill(rndm);
+      if(pcollisionEventSelection==0 || fabs(vz) > kvzcut){
+	hEvents_bad->Fill(rndm);
+	continue;
+      }
+    }
+
+    //if(printDebug) std::cout <<i<<"  jet 40 " << jet40 << " jet60 " << jet60 << " jet80 " << jet80 << std::endl;
     //if(!jet55_1 || !jet65_1 || !jet80_1)continue;
     
     int iCent = GetCentBin(hiBin);
@@ -725,9 +790,9 @@ int jetmatch(std::string kSpecies="pbpb",
       if( rawpt[pj] < kptrawcut || jtpt[pj] < kptrecocut ) continue;
       if( fabs(jteta[pj]) > ketacut ) continue;
 
-      if ( kDataset == "mc" ){
-	if ( pfrefpt[pj] > 3.*pthat )continue;
-      }
+      // if ( kDataset == "mc" ){
+      // 	if ( pfrefpt[pj] > 3.*pthat )continue;
+      // }
       //if( (eleMax[pj]/jtpt[pj])>=0.6 || (chargedMax[pj]/jtpt[pj])<=0.02 )continue;
       
       Jet pfj;
@@ -753,9 +818,9 @@ int jetmatch(std::string kSpecies="pbpb",
       if( rawpt_calo[cj] < kptrawcut || jtpt_calo[cj] < kptrecocut) continue;
       if( fabs(jteta_calo[cj]) > ketacut ) continue;
 
-      if( kDataset == "mc" ){
-	if ( refpt_calo[cj] > 3.*pthat )continue;
-      }
+      // if( kDataset == "mc" ){
+      // 	if ( refpt_calo[cj] > 3.*pthat )continue;
+      // }
       
       Jet clj;
       clj.id  = cj;
