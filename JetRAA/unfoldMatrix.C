@@ -12,6 +12,7 @@
 #include <TStyle.h>
 #include <TStopwatch.h>
 #include <TRandom3.h>
+#include <TMatrixD.h>
 
 #include <cstdlib>
 #include <cmath>
@@ -25,6 +26,13 @@
 #include <set>
 #include <utility>
 
+#include "RooUnfold-1.1.1/src/RooUnfold.h"
+#include "RooUnfold-1.1.1/src/RooUnfoldResponse.h"
+#include "RooUnfold-1.1.1/src/RooUnfoldBayes.h"
+#include "RooUnfold-1.1.1/src/RooUnfoldSvd.h"
+#include "RooUnfold-1.1.1/src/RooUnfoldBinByBin.h"
+
+
 using namespace std;
 
 #ifdef _MAKECINT_
@@ -32,7 +40,6 @@ using namespace std;
 #pragma link off all classes;
 #pragma link off all functions;
 #endif
-
 
 //! constants
 #define iYear 2015
@@ -46,6 +53,7 @@ using namespace std;
 #define  kdelrcut   0.3
 #define  kvzcut     15.0
 
+const int nIter=5;
 
 void AddInputFiles(TChain */*ch*/, string /*iname*/, string /*inputTree*/);
 
@@ -59,6 +67,8 @@ float deltaR(float /*eta1*/, float /*phi1*/,
 
 double GetXsec(double /*maxpthat*/);
 void GetCentWeight(TH1F */*hCentWeight*/);
+TH2F* CorrelationHist (const TMatrixD& /*cov*/, const char* /*name*/, const char* /*title*/,
+		       const unsigned /*nbins_rec*/, const Double_t */*bins*/);
 
 struct Jet{
   int id;
@@ -99,9 +109,9 @@ typedef std::multiset< CaloPFJetPair >::iterator CPFItr;
 
 
 
-const int ncen=7;
-const char *cdir [ncen] = {"05","510","1030","3050","5070","7090","90100"};
-const char *ccent[ncen] = {"0-5%","5-10%","10-30%","30-50%","50-70%","70-90%","90-100%"};
+const int ncen=8;
+const char *cdir [ncen] = {"05","510","1030","3050","5070","7090","90100","pp"};
+const char *ccent[ncen] = {"0-5%","5-10%","10-30%","30-50%","50-70%","70-90%","90-100%","pp"};
 
 const int ncand=5;
 const char *ccand[ncand] = {"h^{#pm}","e^{#pm}","#mu^{#pm}","#gamma","h0"};
@@ -155,332 +165,43 @@ double xsec[12][3] ={{2.034e-01,15.  ,30.},   //! 15     0
 
 TStopwatch timer;
 
-int unfoldMatrix(std::string kSpecies="pbpb",
-	     std::string kAlgName="akPu3",
-	     std::string kDataset="mc",
-	     //! PbPb
-	     std::string kFileList="/mnt/hadoop/cms/store/user/dgulhan/PYTHIA_HYDJET_Track9_Jet30_Pyquen_DiJet_TuneZ2_Unquenched_Hydjet1p8_2760GeV_merged/HiForest_PYTHIA_HYDJET_pthat80_Track9_Jet30_matchEqR_merged_forest_0.root",
-	     //std::string kFileList="/mnt/hadoop/cms/store/user/belt/HiForest_jet55or65or80_JetRAA_v1_final/HiForest_jet55or65or80_JetRAA_v1_lumi9_Part8.root,/mnt/hadoop/cms/store/user/belt/HiForest_jet55or65or80_JetRAA_v1_final/HiForest_jet55or65or80_JetRAA_v1_lumi9_Part80.root,/mnt/hadoop/cms/store/user/belt/HiForest_jet55or65or80_JetRAA_v1_final/HiForest_jet55or65or80_JetRAA_v1_lumi9_Part81.root",
-	     
-	     //! pp
-	     //std::string kFileList="/mnt/hadoop/cms/store/user/velicanu/HiForest_pp_Offical_MC_pthat_170_53X_STARTHI53_V29_5_3_20_correctJEC_pawan_30Nov2014_hadd/0.root",
-	     //std::string kFileList="/mnt/hadoop/cms/store/user/velicanu/PPJet_ForestTag_PYTHIA_localdb_ppJEC_v29_hadd/0.root",
-	     std::string kFoname="outputhisto_mc.root", 
-	     //std::string kFoname="outputhisto_data.root", 
-	     double kMaxpthat=120.
-	     )
+int unfoldMatrix(std::string kAlgName="akPu3")
 {
   
   timer.Start();
 
+  gSystem->Load("RooUnfold-1.1.1/libRooUnfold.so");
+
   std::cout << std::endl;
   bool printDebug=false;
 
-  if( kSpecies == "pbpb" && kDataset == "mc" ){
-    xsec[8][2]=9999; //! 370 in PbPb
-    xsec[9][0]=0.00000;  xsec[9][1]=9999;  xsec[9][2]=9999;
-  }
-
-  //tr_jet = (TTree*)fin->Get("akPu3PFJetAnalyzer/t");
-  TChain *tch_pfjet = new TChain(Form("%sPFJetAnalyzer/t",kAlgName.c_str()));
-  AddInputFiles(tch_pfjet,kFileList,Form("%sPFJetAnalyzer/t",kAlgName.c_str()));
-  cout <<" # of events in PFJet   Tree : " <<  tch_pfjet->GetEntries() <<endl;
-
-  //tr_jet = (TTree*)fin->Get("akPu3CaloJetAnalyzer/t");
-  //TChain *tch_calojet = new TChain(Form("%sCaloJetAnalyzer/t",kAlgName.c_str()));
-  //AddInputFiles(tch_calojet,kFileList,Form("%sCaloJetAnalyzer/t",kAlgName.c_str()));
-  TChain *tch_calojet=0;
-  if( kSpecies == "pbpb" ){
-    tch_calojet = new TChain("akPu3CaloJetAnalyzer/t");
-    AddInputFiles(tch_calojet,kFileList,"akPu3CaloJetAnalyzer/t");
-    cout <<" # of events in CaloJet Tree : " <<  tch_calojet->GetEntries() <<endl;
-  }else{
-    tch_calojet = new TChain("ak3CaloJetAnalyzer/t");
-    AddInputFiles(tch_calojet,kFileList,"ak3CaloJetAnalyzer/t");
-    cout <<" # of events in CaloJet Tree : " <<  tch_calojet->GetEntries() <<endl;
-  }
-  //tr_ev = (TTree*)fin->Get("hiEvtAnalyzer/HiTree");
-  TChain *tch_ev = new TChain("hiEvtAnalyzer/HiTree");
-  AddInputFiles(tch_ev,kFileList,"hiEvtAnalyzer/HiTree");
-  cout <<" # of events in Event   Tree : " <<  tch_ev->GetEntries() <<endl;
-
-  //tr_hlt = (TTree*)fin->Get("hltanalysis/HltTree");
-  TChain *tch_hlt = new TChain("hltanalysis/HltTree");
-  AddInputFiles(tch_hlt,kFileList,"hltanalysis/HltTree");
-  cout <<" # of events in HLT     Tree : " <<  tch_hlt->GetEntries() <<endl;
-
-  //tr_skim = (TTree*)fin->Get("skimanalysis/HltTree");
-  TChain *tch_skim = new TChain("skimanalysis/HltTree");
-  AddInputFiles(tch_skim,kFileList,"skimanalysis/HltTree");
-  cout <<" # of events in Skim    Tree : " <<  tch_skim->GetEntries() <<endl;
-
-  //tr_trobj = (TTree*)fin->Get("hltobject/jetObjTree");  
-  // TChain *tch_trgobj = new TChain("hltobject/jetObjTree");
-  // AddInputFiles(tch_trgobj,kFileList,"hltobject/jetObjTree");
-  // cout <<" # of events in TrigObj Tree : " <<  tch_trgobj->GetEntries() <<endl;
-  // cout <<endl;
-
-
-  //! Event Tree
-  int run_value;
-  int evt_value;
-  int lumi_value;
-  int hiNpix;
-  int hiBin;
-  float vz;
-
-  tch_ev->SetBranchAddress("run",&run_value);  
-  tch_ev->SetBranchAddress("evt",&evt_value);  
-  tch_ev->SetBranchAddress("lumi",&lumi_value);  
-  tch_ev->SetBranchAddress("hiBin",&hiBin);
-  tch_ev->SetBranchAddress("hiNpix",&hiNpix);  
-  tch_ev->SetBranchAddress("vz",&vz);
-
-
-  //! HLT tree
-  //! HI
-  int jet55;
-  int jet55_prescl;
-  int jet65;
-  int jet65_prescl;
-  int jet80;
-  int jet80_prescl;
-  //! PP
-  int jet40;
-  int jet40_prescl;
-  int jet60;
-  int jet60_prescl;
-
-  if ( kSpecies == "pbpb" ){
-    if( kDataset == "data" ){
-      tch_hlt->SetBranchAddress("HLT_HIJet55_v1",&jet55);
-      tch_hlt->SetBranchAddress("HLT_HIJet55_v1_Prescl",&jet55_prescl);
-      tch_hlt->SetBranchAddress("HLT_HIJet65_v1",&jet65);
-      tch_hlt->SetBranchAddress("HLT_HIJet65_v1_Prescl",&jet65_prescl);
-      tch_hlt->SetBranchAddress("HLT_HIJet80_v1",&jet80);
-      tch_hlt->SetBranchAddress("HLT_HIJet80_v1_Prescl",&jet80_prescl);
-    }else{
-      tch_hlt->SetBranchAddress("HLT_HIJet55_v7",&jet55);
-      tch_hlt->SetBranchAddress("HLT_HIJet55_v7_Prescl",&jet55_prescl);
-      tch_hlt->SetBranchAddress("HLT_HIJet65_v7",&jet65);
-      tch_hlt->SetBranchAddress("HLT_HIJet65_v7_Prescl",&jet65_prescl);
-      tch_hlt->SetBranchAddress("HLT_HIJet80_v7",&jet80);
-      tch_hlt->SetBranchAddress("HLT_HIJet80_v7_Prescl",&jet80_prescl);
-    }
-  }else {
-    tch_hlt->SetBranchAddress("HLT_PAJet40_NoJetID_v1",&jet40);
-    tch_hlt->SetBranchAddress("HLT_PAJet40_NoJetID_v1_Prescl",&jet40_prescl);
-    tch_hlt->SetBranchAddress("HLT_PAJet60_NoJetID_v1",&jet60);
-    tch_hlt->SetBranchAddress("HLT_PAJet60_NoJetID_v1_Prescl",&jet60_prescl);
-    tch_hlt->SetBranchAddress("HLT_PAJet80_NoJetID_v1",&jet80);
-    tch_hlt->SetBranchAddress("HLT_PAJet80_NoJetID_v1_Prescl",&jet80_prescl);
-  }
-  // int L1_sj36_1;
-  // int L1_sj36_p_1;
-  // int L1_sj52_1;
-  // int L1_sj52_p_1;
-  // tch_hlt->SetBranchAddress("L1_SingleJet36_BptxAND",&L1_sj36_1);
-  // tch_hlt->SetBranchAddress("L1_SingleJet36_BptxAND_Prescl",&L1_sj36_p_1);
-  // tch_hlt->SetBranchAddress("L1_SingleJet52_BptxAND",&L1_sj52_1);
-  // tch_hlt->SetBranchAddress("L1_SingleJet52_BptxAND_Prescl",&L1_sj52_p_1);
-
-
-  //! Skim Tree
-  int pcollisionEventSelection;
-  int pHBHENoiseFilter;
-  if( kSpecies == "pbpb" )tch_skim->SetBranchAddress("pcollisionEventSelection",&pcollisionEventSelection);
-  else tch_skim->SetBranchAddress("pPAcollisionEventSelectionPA",&pcollisionEventSelection);
-  tch_skim->SetBranchAddress("pHBHENoiseFilter",&pHBHENoiseFilter);
-
-  //! Trigger object tree
-  // float trgObj_id;
-  // float trgObj_pt;
-  // float trgObj_eta;
-  // float trgObj_phi;
-  // tch_trgobj->SetBranchAddress("id",&trgObj_id);
-  // tch_trgobj->SetBranchAddress("pt",&trgObj_pt);
-  // tch_trgobj->SetBranchAddress("eta",&trgObj_eta);
-  // tch_trgobj->SetBranchAddress("phi",&trgObj_phi);
-
-
-
-
-  //! CaloJet tree
-  //Declaration of leaves types
-  int   nref_calo;
-  float jtpt_calo[1000];
-  float rawpt_calo[1000];
-  float jtpu_calo[1000];
-  float jteta_calo[1000];
-  float jtphi_calo[1000];
-  float hcalSum_calo[1000];
-  float ecalSum_calo[1000];
+  std::string kSpecies="pbpb";
+  std::string kDataset="mc";
+  std::string kFileList="";
+  std::string kFoname="Outputhist_unfold_"+kAlgName+"PF.root"; 
+  double kMaxpthat=0.0;
+		   
+  double lumi_scale=1.0;
+  // if( kSpecies == "pbpb" ){
+  //   lumi_scale = 1./(145.156 * 1e6);
+  // } else {
+  //   lumi_scale = 1./(5.3 * 1e9);
+  // }
   
-  int sid_calo[1000];
-  float refpt_calo[1000];
-  float refeta_calo[1000];
-  float refphi_calo[1000];
-  float refdrjt_calo[1000];
-
-  tch_calojet->SetBranchAddress("nref",&nref_calo);
-  tch_calojet->SetBranchAddress("rawpt",rawpt_calo);
-  tch_calojet->SetBranchAddress("jtpt" ,jtpt_calo);
-  tch_calojet->SetBranchAddress("jtpu" ,jtpu_calo);
-  tch_calojet->SetBranchAddress("jteta",jteta_calo);
-  tch_calojet->SetBranchAddress("jtphi",jtphi_calo);
-  tch_calojet->SetBranchAddress("hcalSum",hcalSum_calo);
-  tch_calojet->SetBranchAddress("ecalSum",ecalSum_calo);
-  if( kDataset == "mc" ){
-    tch_calojet->SetBranchAddress("subid" ,sid_calo);
-    tch_calojet->SetBranchAddress("refpt" ,refpt_calo);
-    tch_calojet->SetBranchAddress("refeta",refeta_calo);
-    tch_calojet->SetBranchAddress("refphi",refphi_calo);
-    tch_calojet->SetBranchAddress("refdrjt",refdrjt_calo);
+  int iterations=4;
+  int mincen=0;
+  int maxcen=ncen-1;
+  if( kSpecies == "pp" ){
+    mincen=ncen-1;
+    maxcen=ncen;
   }
 
 
-  //! PFJet tree
-  //Declaration of leaves types
-  int   nref;
-  float jtpt[1000];
-  float rawpt[1000];
-  float jteta[1000];
-  float jtpu [1000];
-  float jtphi[1000];
-  float neutralSum[1000];
-  float chargedSum[1000];
-  float photonSum[1000];
-  float eleSum[1000];
-  float muonSum[1000];
-  float neutralMax[1000];
-  float chargedMax[1000];
-  float photonMax[1000];
-  float eleMax[1000];
-  float muonMax[1000];
-  float hcalSum_pf[1000];
-  float ecalSum_pf[1000];
-
-  float pthat;
-  int   sid[1000];
-  float pfrefpt[1000];
-  float pfrefeta[1000];
-  float pfrefphi[1000];
-  float pfrefdrjt[1000];
-
-  tch_pfjet->SetBranchAddress("nref",&nref);
-  tch_pfjet->SetBranchAddress("rawpt",rawpt);
-  tch_pfjet->SetBranchAddress("jtpt" ,jtpt);
-  tch_pfjet->SetBranchAddress("jtpu" ,jtpu);
-  tch_pfjet->SetBranchAddress("jteta",jteta);
-  tch_pfjet->SetBranchAddress("jtphi",jtphi);
-  tch_pfjet->SetBranchAddress("neutralSum",neutralSum);
-  tch_pfjet->SetBranchAddress("chargedSum",chargedSum);
-  tch_pfjet->SetBranchAddress("photonSum",photonSum);
-  tch_pfjet->SetBranchAddress("eSum",eleSum);
-  tch_pfjet->SetBranchAddress("muSum",muonSum);
-  tch_pfjet->SetBranchAddress("neutralMax",neutralMax);
-  tch_pfjet->SetBranchAddress("chargedMax",chargedMax);
-  tch_pfjet->SetBranchAddress("photonMax",photonMax);
-  tch_pfjet->SetBranchAddress("eMax",eleMax);
-  tch_pfjet->SetBranchAddress("muMax",muonMax);
-  tch_pfjet->SetBranchAddress("hcalSum",hcalSum_pf);
-  tch_pfjet->SetBranchAddress("ecalSum",ecalSum_pf);
-
-  if( kDataset == "mc" ){
-    tch_pfjet->SetBranchAddress("pthat",&pthat);    
-    tch_pfjet->SetBranchAddress("subid" ,sid);
-    tch_pfjet->SetBranchAddress("refpt" ,pfrefpt);
-    tch_pfjet->SetBranchAddress("refeta",pfrefeta);
-    tch_pfjet->SetBranchAddress("refphi",pfrefphi);
-    tch_pfjet->SetBranchAddress("refdrjt",pfrefdrjt);
-  }
-  
-  tch_pfjet->AddFriend(tch_ev);
-  tch_pfjet->AddFriend(tch_hlt);
-  tch_pfjet->AddFriend(tch_skim);
-  //tch_pfjet->AddFriend(tch_trgobj);
-  tch_pfjet->AddFriend(tch_calojet);
-
-  //! Disable branches 
-  //! Jet Tree
-  tch_pfjet->SetBranchStatus("*",0,0);
-  tch_pfjet->SetBranchStatus("nref" ,1,0);
-  tch_pfjet->SetBranchStatus("rawpt",1,0);
-  tch_pfjet->SetBranchStatus("jtpt" ,1,0);
-  tch_pfjet->SetBranchStatus("jtpu" ,1,0);
-  tch_pfjet->SetBranchStatus("jteta",1,0);
-  tch_pfjet->SetBranchStatus("jtphi",1,0);
-  tch_pfjet->SetBranchStatus("neutralSum",1,0);
-  tch_pfjet->SetBranchStatus("chargedSum",1,0);
-  tch_pfjet->SetBranchStatus("photonSum",1,0);
-  tch_pfjet->SetBranchStatus("eSum",1,0);
-  tch_pfjet->SetBranchStatus("muSum",1,0);
-  tch_pfjet->SetBranchStatus("neutralMax",1,0);
-  tch_pfjet->SetBranchStatus("chargedMax",1,0);
-  tch_pfjet->SetBranchStatus("photonMax",1,0);
-  tch_pfjet->SetBranchStatus("eMax",1,0);
-  tch_pfjet->SetBranchStatus("muMax",1,0);
-  tch_pfjet->SetBranchStatus("hcalSum",1,0);
-  tch_pfjet->SetBranchStatus("ecalSum",1,0);
-
-  tch_pfjet->SetBranchStatus("run",1,0);
-  tch_pfjet->SetBranchStatus("evt",1,0);
-  tch_pfjet->SetBranchStatus("lumi",1,0);
-  tch_pfjet->SetBranchStatus("hiNpix",1,0);
-  tch_pfjet->SetBranchStatus("hiBin",1,0);
-  tch_pfjet->SetBranchStatus("vz",1,0);
-
-  // tch_pfjet->SetBranchStatus("id",1,0);
-  // tch_pfjet->SetBranchStatus("pt",1,0);
-  // tch_pfjet->SetBranchStatus("eta",1,0);
-  // tch_pfjet->SetBranchStatus("phi",1,0);
-
-  if( kSpecies == "pbpb" ){
-    if ( kDataset == "data" ){
-      tch_pfjet->SetBranchStatus("HLT_HIJet55_v1",1,0);
-      tch_pfjet->SetBranchStatus("HLT_HIJet55_v1_Prescl",1,0);
-      tch_pfjet->SetBranchStatus("HLT_HIJet65_v1",1,0);
-      tch_pfjet->SetBranchStatus("HLT_HIJet65_v1_Prescl",1,0);
-      tch_pfjet->SetBranchStatus("HLT_HIJet80_v1",1,0);
-      tch_pfjet->SetBranchStatus("HLT_HIJet80_v1_Prescl",1,0);
-      // tch_pfjet->SetBranchStatus("L1_SingleJet36_BptxAND",1,0);
-      // tch_pfjet->SetBranchStatus("L1_SingleJet36_BptxAND_Prescl",1,0);
-      // tch_pfjet->SetBranchStatus("L1_SingleJet52_BptxAND",1,0);
-      // tch_pfjet->SetBranchStatus("L1_SingleJet52_BptxAND_Prescl",1,0);
-    }else{
-      tch_pfjet->SetBranchStatus("HLT_HIJet55_v7",1,0);
-      tch_pfjet->SetBranchStatus("HLT_HIJet55_v7_Prescl",1,0);
-      tch_pfjet->SetBranchStatus("HLT_HIJet65_v7",1,0);
-      tch_pfjet->SetBranchStatus("HLT_HIJet65_v7_Prescl",1,0);
-      tch_pfjet->SetBranchStatus("HLT_HIJet80_v7",1,0);
-      tch_pfjet->SetBranchStatus("HLT_HIJet80_v7_Prescl",1,0);
-    }
-    tch_pfjet->SetBranchStatus("pcollisionEventSelection",1,0);
-  }else{
-    tch_pfjet->SetBranchStatus("HLT_PAJet40_NoJetID_v1",1,0);
-    tch_pfjet->SetBranchStatus("HLT_PAJet40_NoJetID_v1_Prescl",1,0);
-    tch_pfjet->SetBranchStatus("HLT_PAJet60_NoJetID_v1",1,0);
-    tch_pfjet->SetBranchStatus("HLT_PAJet60_NoJetID_v1_Prescl",1,0);
-    tch_pfjet->SetBranchStatus("HLT_PAJet80_NoJetID_v1",1,0);
-    tch_pfjet->SetBranchStatus("HLT_PAJet80_NoJetID_v1_Prescl",1,0);
-    tch_pfjet->SetBranchStatus("pPAcollisionEventSelectionPA",1,0);
-  }
-  tch_pfjet->SetBranchStatus("pHBHENoiseFilter",1,0);
-  
-  if( kDataset == "mc"){
-    tch_pfjet->SetBranchStatus("pthat",1,0);    
-    tch_pfjet->SetBranchStatus("subid" ,1,0);
-    tch_pfjet->SetBranchStatus("refpt" ,1,0);
-    tch_pfjet->SetBranchStatus("refeta",1,0);
-    tch_pfjet->SetBranchStatus("refphi",1,0);
-    tch_pfjet->SetBranchStatus("refdrjt",1,0);
-  }
-  
   //! Vertex re-weighting 
   TF1 *fVz=0;
   fVz = new TF1("fVz","[0]+[1]*x+[2]*x*x+[3]*x*x*x+[4]*x*x*x*x");
   fVz->SetParameters(9.86748e-01, -8.91367e-03, 5.35416e-04, 2.67665e-06, -2.01867e-06);
-
+  
   //! Centrality re-weighting 
   TH1F *hCentWeight = new TH1F("hCentWeight","Centrality weight",200,0,200);
   GetCentWeight(hCentWeight);
@@ -490,37 +211,10 @@ int unfoldMatrix(std::string kSpecies="pbpb",
   std::string outfile=outdir+kFoname;
   TFile *fout = new TFile(outfile.c_str(),"RECREATE");
 
-  std::cout<<"\t"<<std::endl;
-  std::cout<<"\t"<<std::endl;
-  std::cout<<"**************************************************** "<<std::endl;
-  std::cout<<Form("Dataset : %s, Species : %s, Jet Algorithm :  %s ",kDataset.c_str(), kSpecies.c_str(), kAlgName.c_str())<<std::endl;
-  std::cout<<Form("Outfile : %s",outfile.c_str())<<std::endl;
-  std::cout<<Form("vertex z (c.m.) cut : %0.3f ",kvzcut)<<std::endl;
-  std::cout<<Form("Reco pT cut : %0.3f ; Reco eta cut : %0.3f ",kptrecocut, ketacut)<<std::endl;
-  std::cout<<Form("CALO-PF jet matching delta R cut   : %0.3f ",kdelrmatch)<<std::endl;
-  std::cout<<"**************************************************** "<<std::endl;
-  std::cout<<"\t"<<std::endl;
-  std::cout<<"\t"<<std::endl;
-
   //! 
   //! Define histograms here
-  fout->mkdir(Form("%sJetAnalyzer",kAlgName.c_str()));
-  fout->cd(Form("%sJetAnalyzer"   ,kAlgName.c_str()));
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////
-  // Float_t deltar;
-  // Float_t calopt, pfpt;
-  // Float_t calorawpt, pfrawpt;
-  // Float_t caloeta, pfeta;
-  // Float_t calophi, pfphi;
-  // Float_t calopu, pfpu;
-  // Float_t chMax, phMax, neMax,  chSum, phSum, neSum,  eSum, muSum, muMax, eMax, hcalSum, ecalSum;
-  /*Int_t hiBin jet80, jet80_prescl, jet65, jet65_prescl, jet55, jet55_prescl;*/
-  /*Int_t evt_value, run_value, lumi_value;*/
-
-  // Int_t subid;
-  // Float_t weight;
-  // Float_t refpt, refeta, refphi, refdrjt; 
+  //fout->mkdir(Form("%sJetAnalyzer",kAlgName.c_str()));
+  //fout->cd(Form("%sJetAnalyzer"   ,kAlgName.c_str()));
 
   TH1F *hEvents_Total = new TH1F("hEvents_Total","Total # of events ",10,0.,1.);
   hEvents_Total->Sumw2();
@@ -573,597 +267,1288 @@ int unfoldMatrix(std::string kSpecies="pbpb",
   TH1F *hEvents_jet65_nojet80 = new TH1F("hEvents_jet65_nojet80","# of events jet60 && !jet80",10,0.,1.);
   hEvents_jet65_nojet80->Sumw2();
 
+  RooUnfoldBayes *unf_bayes=0;
+
   //! 2D histograms for unfolding
   TH2F *hmatrix[2][ncen], *hmatrix_m[2][ncen], *hmatrix_um[2][ncen];
-  TH1F *hgen[2][ncen], *hgen_m[2][ncen], *hgen_um[2][ncen];
-  TH1F *hrec[2][ncen], *hrec_m[2][ncen], *hrec_um[2][ncen];
-  TH1F *hrec_c[2][ncen], *hrec_m_c[2][ncen], *hrec_um_c[2][ncen];
+  TH1F *hgen   [2][ncen], *hgen_m   [2][ncen], *hgen_um   [2][ncen];
+  TH1F *hrec   [2][ncen], *hrec_m   [2][ncen], *hrec_um   [2][ncen];
+  TH1F *hunf   [2][ncen], *hunf_m   [2][ncen], *hunf_um   [2][ncen];
+  RooUnfoldResponse *hresp[2][ncen], *hresp_m[2][ncen], *hresp_um[2][ncen];
+  TH2F *hresponse[2][ncen], *hresponse_m[2][ncen], *hresponse_um[2][ncen];
+  TH2F *hcov[2][ncen], *hcov_m[2][ncen], *hcov_um[2][ncen];
 
   //! fine bin in pT
   TH2F *hmatrix_f[2][ncen], *hmatrix_m_f[2][ncen], *hmatrix_um_f[2][ncen];
   TH1F *hgen_f   [2][ncen], *hgen_m_f   [2][ncen], *hgen_um_f   [2][ncen];
   TH1F *hrec_f   [2][ncen], *hrec_m_f   [2][ncen], *hrec_um_f   [2][ncen];
+  TH1F *hunf_f   [2][ncen], *hunf_m_f   [2][ncen], *hunf_um_f   [2][ncen];
+  RooUnfoldResponse *hresp_f[2][ncen], *hresp_m_f[2][ncen], *hresp_um_f[2][ncen];
+  TH2F *hresponse_f[2][ncen], *hresponse_m_f[2][ncen], *hresponse_um_f[2][ncen];
+  TH2F *hcov_f[2][ncen], *hcov_m_f[2][ncen], *hcov_um_f[2][ncen];
+
+  ///! check
+  TH2F *hmatrix_c[2][ncen], *hmatrix_m_c[2][ncen], *hmatrix_um_c[2][ncen];
+  TH1F *hgen_c[2][ncen], *hgen_m_c[2][ncen], *hgen_um_c[2][ncen];
+  TH1F *hrec_c[2][ncen], *hrec_m_c[2][ncen], *hrec_um_c[2][ncen];
+  TH1F *hunf_c[2][ncen], *hunf_m_c[2][ncen], *hunf_um_c[2][ncen];
+
+  TH2F *hmatrix_c_f[2][ncen], *hmatrix_m_c_f[2][ncen], *hmatrix_um_c_f[2][ncen];
+  TH1F *hgen_c_f [2][ncen], *hgen_m_c_f [2][ncen], *hgen_um_c_f [2][ncen];
   TH1F *hrec_c_f [2][ncen], *hrec_m_c_f [2][ncen], *hrec_um_c_f [2][ncen];
+  TH1F *hunf_c_f [2][ncen], *hunf_m_c_f [2][ncen], *hunf_um_c_f [2][ncen];
+
+
 
   //! 0 : wo jetid; 1 : wjetid
   for(int i=0; i<2; i++){
     for(int ic=0; ic<ncen; ic++){
+
       hmatrix[i][ic] = new TH2F(Form("hmatrix_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic), Form("hmatrix_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
 			     nbins,ptbins,nbins,ptbins);
       hmatrix[i][ic]->Sumw2();
-      hmatrix_m[i][ic] = new TH2F(Form("hmatrix_m_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic), Form("matxhed hmatrix_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
+      hmatrix_m[i][ic] = new TH2F(Form("hmatrix_m_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic), Form("matxhed hmatrix_m_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
 			       nbins,ptbins,nbins,ptbins);
       hmatrix_m[i][ic]->Sumw2();
-      hmatrix_um[i][ic] = new TH2F(Form("hmatrix_um_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic), Form("un-matched hmatrix_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
+      hmatrix_um[i][ic] = new TH2F(Form("hmatrix_um_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic), Form("un-matched hmatrix_um_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
 				nbins,ptbins,nbins,ptbins);
       hmatrix_um[i][ic]->Sumw2();
-      
+
+      hmatrix_f[i][ic] = new TH2F(Form("hmatrix_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic), Form("hmatrix_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
+			       600,0.,600.,600,0.,600.);
+      hmatrix_f[i][ic]->Sumw2();
+      hmatrix_m_f[i][ic] = new TH2F(Form("hmatrix_m_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic), Form("matxhed hmatrix_m_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
+				 600,0.,600.,600,0.,600.);
+      hmatrix_m_f[i][ic]->Sumw2();
+      hmatrix_um_f[i][ic] = new TH2F(Form("hmatrix_um_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic), Form("un-matched hmatrix_um_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
+				  600,0.,600.,600,0.,600.);
+      hmatrix_um_f[i][ic]->Sumw2();
+
+
+      ///
+      hmatrix_c[i][ic] = new TH2F(Form("hmatrix_c_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic), Form("hmatrix_c_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
+			     nbins,ptbins,nbins,ptbins);
+      hmatrix_c[i][ic]->Sumw2();
+      hmatrix_m_c[i][ic] = new TH2F(Form("hmatrix_m_c_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic), Form("matxhed hmatrix_m_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
+			       nbins,ptbins,nbins,ptbins);
+      hmatrix_m_c[i][ic]->Sumw2();
+      hmatrix_um_c[i][ic] = new TH2F(Form("hmatrix_um_c_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic), Form("un-matched hmatrix_um_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
+				nbins,ptbins,nbins,ptbins);
+      hmatrix_um_c[i][ic]->Sumw2();
+
+      hmatrix_c_f[i][ic] = new TH2F(Form("hmatrix_c_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic), Form("hmatrix_c_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
+			       600,0.,600.,600,0.,600.);
+      hmatrix_c_f[i][ic]->Sumw2();
+      hmatrix_m_c_f[i][ic] = new TH2F(Form("hmatrix_m_c_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic), Form("matxhed hmatrix_m_c_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
+				 600,0.,600.,600,0.,600.);
+      hmatrix_m_c_f[i][ic]->Sumw2();
+      hmatrix_um_c_f[i][ic] = new TH2F(Form("hmatrix_um_c_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic), Form("un-matched hmatrix_um_c_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
+				  600,0.,600.,600,0.,600.);
+      hmatrix_um_c_f[i][ic]->Sumw2();
+
+
       hgen[i][ic] = new TH1F(Form("hgen_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("hgen_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
 			  nbins,ptbins);
       hgen[i][ic]->Sumw2();
-      hgen_m[i][ic] = new TH1F(Form("hgen_m_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("matched hgen_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
+      hgen_m[i][ic] = new TH1F(Form("hgen_m_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("matched hgen_m_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
 			    nbins,ptbins);
       hgen_m[i][ic]->Sumw2();
-      hgen_um[i][ic] = new TH1F(Form("hgen_um_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("un-matched hgen_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
+      hgen_um[i][ic] = new TH1F(Form("hgen_um_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("un-matched hgen_um_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
 			     nbins,ptbins);
       hgen_um[i][ic]->Sumw2();
       hrec[i][ic] = new TH1F(Form("hrec_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("hrec_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
 			  nbins,ptbins);
       hrec[i][ic]->Sumw2();
-      hrec_m[i][ic] = new TH1F(Form("hrec_m_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("matched hrec_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
+      hrec_m[i][ic] = new TH1F(Form("hrec_m_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("matched hrec_m_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
 			    nbins,ptbins);
       hrec_m[i][ic]->Sumw2();
-      hrec_um[i][ic] = new TH1F(Form("hrec_um_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("unmatched hrec_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
+      hrec_um[i][ic] = new TH1F(Form("hrec_um_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("unmatched hrec_um_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
 			     nbins,ptbins);
       hrec_um[i][ic]->Sumw2();
       
+
+      hgen_c[i][ic] = new TH1F(Form("hgen_c_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("hgen_c_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
+			  nbins,ptbins);
+      hgen_c[i][ic]->Sumw2();
+      hgen_m_c[i][ic] = new TH1F(Form("hgen_m_c_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("matched hgen_m_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
+			    nbins,ptbins);
+      hgen_m_c[i][ic]->Sumw2();
+      hgen_um_c[i][ic] = new TH1F(Form("hgen_um_c_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("un-matched hgen_um_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
+			     nbins,ptbins);
+      hgen_um_c[i][ic]->Sumw2();
+
       hrec_c[i][ic] = new TH1F(Form("hrec_c_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("check hrec_c_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
 			    nbins,ptbins);
       hrec_c[i][ic]->Sumw2();
       
-      hrec_m_c[i][ic] = new TH1F(Form("hrec_m_c_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("matched check hrec_c_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
+      hrec_m_c[i][ic] = new TH1F(Form("hrec_m_c_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("matched check hrec_m_c_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
 			      nbins,ptbins);
       hrec_m_c[i][ic]->Sumw2();
-      hrec_um_c[i][ic] = new TH1F(Form("hrec_um_c_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("un matched check hrec_c_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
+      hrec_um_c[i][ic] = new TH1F(Form("hrec_um_c_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("un matched check hrec_um_c_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
 			       nbins,ptbins);
       hrec_um_c[i][ic]->Sumw2();
       
       
       ////// _f fine bin in pT
-      hmatrix_f[i][ic] = new TH2F(Form("hmatrix_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic), Form("hmatrix_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
-			       600,0.,600.,600,0.,600.);
-      hmatrix_f[i][ic]->Sumw2();
-      hmatrix_m_f[i][ic] = new TH2F(Form("hmatrix_m_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic), Form("matxhed hmatrix_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
-				 600,0.,600.,600,0.,600.);
-      hmatrix_m_f[i][ic]->Sumw2();
-      hmatrix_um_f[i][ic] = new TH2F(Form("hmatrix_um_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic), Form("un-matched hmatrix_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
-				  600,0.,600.,600,0.,600.);
-      hmatrix_um_f[i][ic]->Sumw2();
       
-      hgen_f[i][ic] = new TH1F(Form("hgen_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("hgen_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
+      hgen_f[i][ic] = new TH1F(Form("hgen_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("hgen_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
 			    600,0.,600.);
       hgen_f[i][ic]->Sumw2();
-      hgen_m_f[i][ic] = new TH1F(Form("hgen_m_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("matched hgen_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
+      hgen_m_f[i][ic] = new TH1F(Form("hgen_m_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("matched hgen_m_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
 			      600,0.,600.);
       hgen_m_f[i][ic]->Sumw2();
-      hgen_um_f[i][ic] = new TH1F(Form("hgen_um_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("un-matched hgen_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
+      hgen_um_f[i][ic] = new TH1F(Form("hgen_um_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("un-matched hgen_um_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
 			       600,0.,600.);
       hgen_um_f[i][ic]->Sumw2();
-      hrec_f[i][ic] = new TH1F(Form("hrec_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("hrec_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
+      hrec_f[i][ic] = new TH1F(Form("hrec_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("hrec_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
 			    600,0.,600.);
       hrec_f[i][ic]->Sumw2();
-      hrec_m_f[i][ic] = new TH1F(Form("hrec_m_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("matched hrec_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
+      hrec_m_f[i][ic] = new TH1F(Form("hrec_m_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("matched hrec_m_f%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
 			      600,0.,600.);
       hrec_m_f[i][ic]->Sumw2();
-      hrec_um_f[i][ic] = new TH1F(Form("hrec_um_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("unmatched hrec_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
+      hrec_um_f[i][ic] = new TH1F(Form("hrec_um_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("unmatched hrec_um_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
 			       600,0.,600.);
       hrec_um_f[i][ic]->Sumw2();
       
-      hrec_c_f[i][ic] = new TH1F(Form("hrec_c_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("check hrec_c_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
+      hrec_c_f[i][ic] = new TH1F(Form("hrec_c_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("check hrec_c_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
 			      600,0.,600.);
       hrec_c_f[i][ic]->Sumw2();
       
-      hrec_m_c_f[i][ic] = new TH1F(Form("hrec_m_c_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("matched check hrec_c_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
+      hrec_m_c_f[i][ic] = new TH1F(Form("hrec_m_c_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("matched check hrec_c_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
 				600,0.,600.);
       hrec_m_c_f[i][ic]->Sumw2();
-      hrec_um_c_f[i][ic] = new TH1F(Form("hrec_um_c_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("un matched check hrec_c_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
+      hrec_um_c_f[i][ic] = new TH1F(Form("hrec_um_c_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("un matched check hrec_c_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
 				 600,0.,600.);
       hrec_um_c_f[i][ic]->Sumw2();
+
+      hgen_c_f[i][ic] = new TH1F(Form("hgen_c_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("hgen_c_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
+				 600,0.,600.);
+      hgen_c_f[i][ic]->Sumw2();
+      hgen_m_c_f[i][ic] = new TH1F(Form("hgen_m_c_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("matched hgen_c_m_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
+				   600,0.,600.);
+      hgen_m_c_f[i][ic]->Sumw2();
+      hgen_um_c_f[i][ic] = new TH1F(Form("hgen_um_c_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),Form("un-matched hgen_c_um_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(), i,ic),
+			     nbins,ptbins);
+      hgen_um_c_f[i][ic]->Sumw2();
+
+      //! RooUnfold matrix
+      hresp[i][ic] = new RooUnfoldResponse(hrec[i][ic], hgen[i][ic], Form("hresp_%s_%s_%d_%d", kSpecies.c_str(), kAlgName.c_str(), i, ic));
+      hresp_m[i][ic] = new RooUnfoldResponse(hrec_m[i][ic], hgen_m[i][ic], Form("hresp_m_%s_%s_%d_%d", kSpecies.c_str(), kAlgName.c_str(), i, ic));
+      hresp_um[i][ic] = new RooUnfoldResponse(hrec_um[i][ic], hgen_um[i][ic], Form("hresp_um_%s_%s_%d_%d", kSpecies.c_str(), kAlgName.c_str(), i, ic));
+
+      hresp_f[i][ic] = new RooUnfoldResponse(hrec_f[i][ic], hgen_f[i][ic], Form("hresp_f_%s_%s_%d_%d", kSpecies.c_str(), kAlgName.c_str(), i, ic));
+      hresp_m_f[i][ic] = new RooUnfoldResponse(hrec_m_f[i][ic], hgen_m_f[i][ic], Form("hresp_m_f_%s_%s_%d_%d", kSpecies.c_str(), kAlgName.c_str(), i, ic));
+      hresp_um_f[i][ic] = new RooUnfoldResponse(hrec_um_f[i][ic], hgen_um_f[i][ic], Form("hresp_um_f_%s_%s_%d_%d", kSpecies.c_str(), kAlgName.c_str(), i, ic));
     }
   }    
-
   fout->cd("../");
   ////////////////////////////////////////////////////////////////////////////////////////////////////////
   std::cout<<"Initialized the histograms " <<std::endl;
 
-  Long64_t nbytes=0;
-  Long64_t nentries = tch_pfjet->GetEntries();
-  std::cout<<Form("# of entries in TTree for %s %s : ",kAlgName.c_str(),kSpecies.c_str())<<nentries<<std::endl;
+  const int kFiles=9;
+  std::string inputFile[kFiles]{
+    "/mnt/hadoop/cms/store/user/dgulhan/PYTHIA_HYDJET_Track9_Jet30_Pyquen_DiJet_TuneZ2_Unquenched_Hydjet1p8_2760GeV_merged/HiForest_PYTHIA_HYDJET_pthat15_Track9_Jet30_matchEqR_merged_forest_0.root",
+      "/mnt/hadoop/cms/store/user/dgulhan/PYTHIA_HYDJET_Track9_Jet30_Pyquen_DiJet_TuneZ2_Unquenched_Hydjet1p8_2760GeV_merged/HiForest_PYTHIA_HYDJET_pthat30_Track9_Jet30_matchEqR_merged_forest_0.root",
+      "/mnt/hadoop/cms/store/user/dgulhan/PYTHIA_HYDJET_Track9_Jet30_Pyquen_DiJet_TuneZ2_Unquenched_Hydjet1p8_2760GeV_merged/HiForest_PYTHIA_HYDJET_pthat50_Track9_Jet30_matchEqR_merged_forest_0.root",
+      "/mnt/hadoop/cms/store/user/dgulhan/PYTHIA_HYDJET_Track9_Jet30_Pyquen_DiJet_TuneZ2_Unquenched_Hydjet1p8_2760GeV_merged/HiForest_PYTHIA_HYDJET_pthat80_Track9_Jet30_matchEqR_merged_forest_0.root",
+      "/mnt/hadoop/cms/store/user/dgulhan/PYTHIA_HYDJET_Track9_Jet30_Pyquen_DiJet_TuneZ2_Unquenched_Hydjet1p8_2760GeV_merged/HiForest_PYTHIA_HYDJET_pthat120_Track9_Jet30_matchEqR_merged_forest_0.root",
+      "/mnt/hadoop/cms/store/user/dgulhan/PYTHIA_HYDJET_Track9_Jet30_Pyquen_DiJet_TuneZ2_Unquenched_Hydjet1p8_2760GeV_merged/HiForest_PYTHIA_HYDJET_pthat170_Track9_Jet30_matchEqR_merged_forest_0.root",
+      "/mnt/hadoop/cms/store/user/dgulhan/PYTHIA_HYDJET_Track9_Jet30_Pyquen_DiJet_TuneZ2_Unquenched_Hydjet1p8_2760GeV_merged/HiForest_PYTHIA_HYDJET_pthat220_Track9_Jet30_matchEqR_merged_forest_0.root",
+      "/mnt/hadoop/cms/store/user/dgulhan/PYTHIA_HYDJET_Track9_Jet30_Pyquen_DiJet_TuneZ2_Unquenched_Hydjet1p8_2760GeV_merged/HiForest_PYTHIA_HYDJET_pthat280_Track9_Jet30_matchEqR_merged_forest_0.root",
+      "/mnt/hadoop/cms/store/user/dgulhan/PYTHIA_HYDJET_Track9_Jet30_Pyquen_DiJet_TuneZ2_Unquenched_Hydjet1p8_2760GeV_merged/HiForest_PYTHIA_HYDJET_pthat370_Track9_Jet30_matchEqR_merged_forest_0.root" };
 
-  //weight=1.;
-  double wxs=1.;
-  if( kDataset == "mc" ){
-    TEventList* el = new TEventList("el","el");
-    stringstream selection; selection<<"pthat<="<<kMaxpthat;
-    tch_pfjet->Draw(">>el",selection.str().c_str());
-    double fentries = (double)el->GetN();
-    std::cout<<"tree entries  :  "<<kAlgName.c_str()<<" algorithm : " << nentries<<" elist: "<< fentries <<std::endl;
-    delete el;
-    double tmpw = GetXsec(kMaxpthat);
-    wxs = tmpw/(fentries/100000.);
+  const double maxpthat[kFiles]={30.0,50.0,80.0,120.0,170.0,220.0,280.0,370.0,9999};
+
+  if( kSpecies == "pbpb" && kDataset == "mc" ){
+    xsec[8][2]=9999; //! 370 in PbPb
+    xsec[9][0]=0.00000;  xsec[9][1]=9999;  xsec[9][2]=9999;
   }
 
-  //! Start event loop
-  for (Long64_t i=0; i<nentries;i++) {
-    nbytes += tch_pfjet->GetEntry(i);
-
-    if(printDebug && i==1000)break;
-    //if(i==5000)break;
-
-    int iFill=1;
-    if( i%2==1 )iFill=0;
-
-    int trigFill=0;
-    if( kSpecies == "pp" ){
-      if( jet40==1 && jet60==0 && jet80==0 )trigFill=1;
-      else if( jet60==1 && jet80==0 )trigFill=1;      
-      else if( jet80==1 )trigFill=1;      
-    }else{
-      if( jet55==1 && jet65==0 && jet80==0 )trigFill=1;
-      else if( jet65==1 && jet80==0 )trigFill=1;      
-      else if( jet80==1 )trigFill=1;      
-    }
-
-    float rndm=gRandom->Rndm();
-
-    hEvents_Total->Fill(rndm);
-    if( kSpecies == "pp" ){
-      if(jet40)hEvents_jet40->Fill(rndm);
-      if(jet40_prescl)hEvents_jet40_prescl->Fill(jet40_prescl,rndm);
-      if(jet60)hEvents_jet60->Fill(rndm);
-      if(jet60_prescl)hEvents_jet60_prescl->Fill(jet60_prescl,rndm);
-      if(jet80)hEvents_jet80->Fill(rndm);
-      if(jet80_prescl)hEvents_jet80_prescl->Fill(jet80_prescl,rndm);
-
-      if(jet40==1 && jet60==0 && jet80==0)hEvents_jet40_nojet60_nojet80->Fill(rndm);
-      if(jet60==1 && jet80==0)hEvents_jet60_nojet80->Fill(rndm);
-    }else{
-      if(jet55)hEvents_jet55->Fill(rndm);
-      if(jet55_prescl)hEvents_jet55_prescl->Fill(jet55_prescl,rndm);
-      if(jet65)hEvents_jet65->Fill(rndm);
-      if(jet65_prescl)hEvents_jet65_prescl->Fill(jet65_prescl,rndm);
-      if(jet80)hEvents_jet80->Fill(rndm);
-      if(jet80_prescl)hEvents_jet80_prescl->Fill(jet80_prescl,rndm);
-
-      if(jet55==1 && jet65==0 && jet80==0)hEvents_jet55_nojet65_nojet80->Fill(rndm);
-      if(jet65==1 && jet80==0)hEvents_jet65_nojet80->Fill(rndm);
-    }
-
-    if( kDataset == "data" ){
-      if(pcollisionEventSelection)hEvents_pCollEvent->Fill(rndm);
-      if(pcollisionEventSelection && pHBHENoiseFilter)hEvents_pHBHENoise->Fill(rndm);
-      if(pcollisionEventSelection && pHBHENoiseFilter && fabs(vz)<kvzcut )hEvents_Vzcut->Fill(rndm);
-      if(pcollisionEventSelection==0 || pHBHENoiseFilter==0 || fabs(vz) > kvzcut){
-	hEvents_bad->Fill(rndm);
-	continue;
-      }
-    }else if( kDataset == "mc" ){//! HBHENoiseFilter
-      if(pcollisionEventSelection)hEvents_pCollEvent->Fill(rndm);
-      if(pcollisionEventSelection)hEvents_pHBHENoise->Fill(rndm);
-      if(pcollisionEventSelection && fabs(vz)<kvzcut )hEvents_Vzcut->Fill(rndm);
-      if(pcollisionEventSelection==0 || fabs(vz) > kvzcut){
-	hEvents_bad->Fill(rndm);
-	continue;
-      }
-    }
-
-    //if(printDebug) std::cout <<i<<"  jet 40 " << jet40 << " jet60 " << jet60 << " jet80 " << jet80 << std::endl;
-    //if(!jet55_1 || !jet65_1 || !jet80_1)continue;
+  
+  
+  for(int iFile=0; iFile<kFiles; iFile++){
+    kFileList = inputFile[iFile];
+    kMaxpthat = maxpthat [iFile];
     
-    int iCent = GetCentBin(hiBin);
-    if(iCent<0 || iCent>=ncen)continue;
-
+    //tr_jet = (TTree*)fin->Get("akPu3PFJetAnalyzer/t");
+    TChain *tch_pfjet = new TChain(Form("%sPFJetAnalyzer/t",kAlgName.c_str()));
+    AddInputFiles(tch_pfjet,kFileList,Form("%sPFJetAnalyzer/t",kAlgName.c_str()));
+    cout <<" # of events in PFJet   Tree : " <<  tch_pfjet->GetEntries() <<endl;
+    
+    //tr_jet = (TTree*)fin->Get("akPu3CaloJetAnalyzer/t");
+    //TChain *tch_calojet = new TChain(Form("%sCaloJetAnalyzer/t",kAlgName.c_str()));
+    //AddInputFiles(tch_calojet,kFileList,Form("%sCaloJetAnalyzer/t",kAlgName.c_str()));
+    TChain *tch_calojet=0;
+    if( kSpecies == "pbpb" ){
+      tch_calojet = new TChain("akPu3CaloJetAnalyzer/t");
+      AddInputFiles(tch_calojet,kFileList,"akPu3CaloJetAnalyzer/t");
+      cout <<" # of events in CaloJet Tree : " <<  tch_calojet->GetEntries() <<endl;
+    }else{
+      tch_calojet = new TChain("ak3CaloJetAnalyzer/t");
+      AddInputFiles(tch_calojet,kFileList,"ak3CaloJetAnalyzer/t");
+      cout <<" # of events in CaloJet Tree : " <<  tch_calojet->GetEntries() <<endl;
+    }
+    //tr_ev = (TTree*)fin->Get("hiEvtAnalyzer/HiTree");
+    TChain *tch_ev = new TChain("hiEvtAnalyzer/HiTree");
+    AddInputFiles(tch_ev,kFileList,"hiEvtAnalyzer/HiTree");
+    cout <<" # of events in Event   Tree : " <<  tch_ev->GetEntries() <<endl;
+    
+    //tr_hlt = (TTree*)fin->Get("hltanalysis/HltTree");
+    TChain *tch_hlt = new TChain("hltanalysis/HltTree");
+    AddInputFiles(tch_hlt,kFileList,"hltanalysis/HltTree");
+    cout <<" # of events in HLT     Tree : " <<  tch_hlt->GetEntries() <<endl;
+    
+    //tr_skim = (TTree*)fin->Get("skimanalysis/HltTree");
+    TChain *tch_skim = new TChain("skimanalysis/HltTree");
+    AddInputFiles(tch_skim,kFileList,"skimanalysis/HltTree");
+    cout <<" # of events in Skim    Tree : " <<  tch_skim->GetEntries() <<endl;
+    
+    //tr_trobj = (TTree*)fin->Get("hltobject/jetObjTree");  
+    // TChain *tch_trgobj = new TChain("hltobject/jetObjTree");
+    // AddInputFiles(tch_trgobj,kFileList,"hltobject/jetObjTree");
+    // cout <<" # of events in TrigObj Tree : " <<  tch_trgobj->GetEntries() <<endl;
+    // cout <<endl;
+    
+    
+    //! Event Tree
+    int run_value;
+    int evt_value;
+    int lumi_value;
+    int hiNpix;
+    int hiBin;
+    float vz;
+    
+    tch_ev->SetBranchAddress("run",&run_value);  
+    tch_ev->SetBranchAddress("evt",&evt_value);  
+    tch_ev->SetBranchAddress("lumi",&lumi_value);  
+    tch_ev->SetBranchAddress("hiBin",&hiBin);
+    tch_ev->SetBranchAddress("hiNpix",&hiNpix);  
+    tch_ev->SetBranchAddress("vz",&vz);
+    
+    
+    //! HLT tree
+    //! HI
+    int jet55;
+    int jet55_prescl;
+    int jet65;
+    int jet65_prescl;
+    int jet80;
+    int jet80_prescl;
+    //! PP
+    int jet40;
+    int jet40_prescl;
+    int jet60;
+    int jet60_prescl;
+    
     if ( kSpecies == "pbpb" ){
-      //! SuperNovae events use calo jets
-      //int lowjetCounter=0;
-      int jetCounter=0;
-      for(int g = 0;g<nref_calo;g++){
-	// if( fabs(jteta_calo[g]) < 2. && jtpt_calo[g]>=kptrecocut ){ //to select inside
-	// 	lowjetCounter++;
-	// }
-	if( fabs(jteta_calo[g]) < 2. && jtpt_calo[g]>=50. ){ //to select inside
-	  jetCounter++;
-	}//eta selection cut
-      }// jet loop
-      // apply the correct supernova selection cut rejection here:
-      if( hiNpix > 38000 - 500*jetCounter ){
-	hEvents_supernova->Fill(rndm);
+      if( kDataset == "data" ){
+	tch_hlt->SetBranchAddress("HLT_HIJet55_v1",&jet55);
+	tch_hlt->SetBranchAddress("HLT_HIJet55_v1_Prescl",&jet55_prescl);
+	tch_hlt->SetBranchAddress("HLT_HIJet65_v1",&jet65);
+	tch_hlt->SetBranchAddress("HLT_HIJet65_v1_Prescl",&jet65_prescl);
+	tch_hlt->SetBranchAddress("HLT_HIJet80_v1",&jet80);
+	tch_hlt->SetBranchAddress("HLT_HIJet80_v1_Prescl",&jet80_prescl);
+      }else{
+	tch_hlt->SetBranchAddress("HLT_HIJet55_v7",&jet55);
+	tch_hlt->SetBranchAddress("HLT_HIJet55_v7_Prescl",&jet55_prescl);
+	tch_hlt->SetBranchAddress("HLT_HIJet65_v7",&jet65);
+	tch_hlt->SetBranchAddress("HLT_HIJet65_v7_Prescl",&jet65_prescl);
+	tch_hlt->SetBranchAddress("HLT_HIJet80_v7",&jet80);
+	tch_hlt->SetBranchAddress("HLT_HIJet80_v7_Prescl",&jet80_prescl);
+      }
+    }else {
+      tch_hlt->SetBranchAddress("HLT_PAJet40_NoJetID_v1",&jet40);
+      tch_hlt->SetBranchAddress("HLT_PAJet40_NoJetID_v1_Prescl",&jet40_prescl);
+      tch_hlt->SetBranchAddress("HLT_PAJet60_NoJetID_v1",&jet60);
+      tch_hlt->SetBranchAddress("HLT_PAJet60_NoJetID_v1_Prescl",&jet60_prescl);
+      tch_hlt->SetBranchAddress("HLT_PAJet80_NoJetID_v1",&jet80);
+      tch_hlt->SetBranchAddress("HLT_PAJet80_NoJetID_v1_Prescl",&jet80_prescl);
+    }
+    // int L1_sj36_1;
+    // int L1_sj36_p_1;
+    // int L1_sj52_1;
+    // int L1_sj52_p_1;
+    // tch_hlt->SetBranchAddress("L1_SingleJet36_BptxAND",&L1_sj36_1);
+    // tch_hlt->SetBranchAddress("L1_SingleJet36_BptxAND_Prescl",&L1_sj36_p_1);
+    // tch_hlt->SetBranchAddress("L1_SingleJet52_BptxAND",&L1_sj52_1);
+    // tch_hlt->SetBranchAddress("L1_SingleJet52_BptxAND_Prescl",&L1_sj52_p_1);
+    
+    
+    //! Skim Tree
+    int pcollisionEventSelection;
+    int pHBHENoiseFilter;
+    if( kSpecies == "pbpb" )tch_skim->SetBranchAddress("pcollisionEventSelection",&pcollisionEventSelection);
+    else tch_skim->SetBranchAddress("pPAcollisionEventSelectionPA",&pcollisionEventSelection);
+    tch_skim->SetBranchAddress("pHBHENoiseFilter",&pHBHENoiseFilter);
+  
+    //! Trigger object tree
+    // float trgObj_id;
+    // float trgObj_pt;
+    // float trgObj_eta;
+    // float trgObj_phi;
+    // tch_trgobj->SetBranchAddress("id",&trgObj_id);
+    // tch_trgobj->SetBranchAddress("pt",&trgObj_pt);
+    // tch_trgobj->SetBranchAddress("eta",&trgObj_eta);
+    // tch_trgobj->SetBranchAddress("phi",&trgObj_phi);
+
+    
+    //! CaloJet tree
+    //Declaration of leaves types
+    int   nref_calo;
+    float jtpt_calo[1000];
+    float rawpt_calo[1000];
+    float jtpu_calo[1000];
+    float jteta_calo[1000];
+    float jtphi_calo[1000];
+    float hcalSum_calo[1000];
+    float ecalSum_calo[1000];
+  
+    int sid_calo[1000];
+    float refpt_calo[1000];
+    float refeta_calo[1000];
+    float refphi_calo[1000];
+    float refdrjt_calo[1000];
+
+    tch_calojet->SetBranchAddress("nref",&nref_calo);
+    tch_calojet->SetBranchAddress("rawpt",rawpt_calo);
+    tch_calojet->SetBranchAddress("jtpt" ,jtpt_calo);
+    tch_calojet->SetBranchAddress("jtpu" ,jtpu_calo);
+    tch_calojet->SetBranchAddress("jteta",jteta_calo);
+    tch_calojet->SetBranchAddress("jtphi",jtphi_calo);
+    tch_calojet->SetBranchAddress("hcalSum",hcalSum_calo);
+    tch_calojet->SetBranchAddress("ecalSum",ecalSum_calo);
+    if( kDataset == "mc" ){
+      tch_calojet->SetBranchAddress("subid" ,sid_calo);
+      tch_calojet->SetBranchAddress("refpt" ,refpt_calo);
+      tch_calojet->SetBranchAddress("refeta",refeta_calo);
+      tch_calojet->SetBranchAddress("refphi",refphi_calo);
+      tch_calojet->SetBranchAddress("refdrjt",refdrjt_calo);
+    }
+
+
+    //! PFJet tree
+    //Declaration of leaves types
+    int   nref;
+    float jtpt[1000];
+    float rawpt[1000];
+    float jteta[1000];
+    float jtpu [1000];
+    float jtphi[1000];
+    float neutralSum[1000];
+    float chargedSum[1000];
+    float photonSum[1000];
+    float eleSum[1000];
+    float muonSum[1000];
+    float neutralMax[1000];
+    float chargedMax[1000];
+    float photonMax[1000];
+    float eleMax[1000];
+    float muonMax[1000];
+    float hcalSum_pf[1000];
+    float ecalSum_pf[1000];
+
+    float pthat;
+    int   sid[1000];
+    float pfrefpt[1000];
+    float pfrefeta[1000];
+    float pfrefphi[1000];
+    float pfrefdrjt[1000];
+
+    tch_pfjet->SetBranchAddress("nref",&nref);
+    tch_pfjet->SetBranchAddress("rawpt",rawpt);
+    tch_pfjet->SetBranchAddress("jtpt" ,jtpt);
+    tch_pfjet->SetBranchAddress("jtpu" ,jtpu);
+    tch_pfjet->SetBranchAddress("jteta",jteta);
+    tch_pfjet->SetBranchAddress("jtphi",jtphi);
+    tch_pfjet->SetBranchAddress("neutralSum",neutralSum);
+    tch_pfjet->SetBranchAddress("chargedSum",chargedSum);
+    tch_pfjet->SetBranchAddress("photonSum",photonSum);
+    tch_pfjet->SetBranchAddress("eSum",eleSum);
+    tch_pfjet->SetBranchAddress("muSum",muonSum);
+    tch_pfjet->SetBranchAddress("neutralMax",neutralMax);
+    tch_pfjet->SetBranchAddress("chargedMax",chargedMax);
+    tch_pfjet->SetBranchAddress("photonMax",photonMax);
+    tch_pfjet->SetBranchAddress("eMax",eleMax);
+    tch_pfjet->SetBranchAddress("muMax",muonMax);
+    tch_pfjet->SetBranchAddress("hcalSum",hcalSum_pf);
+    tch_pfjet->SetBranchAddress("ecalSum",ecalSum_pf);
+
+    if( kDataset == "mc" ){
+      tch_pfjet->SetBranchAddress("pthat",&pthat);    
+      tch_pfjet->SetBranchAddress("subid" ,sid);
+      tch_pfjet->SetBranchAddress("refpt" ,pfrefpt);
+      tch_pfjet->SetBranchAddress("refeta",pfrefeta);
+      tch_pfjet->SetBranchAddress("refphi",pfrefphi);
+      tch_pfjet->SetBranchAddress("refdrjt",pfrefdrjt);
+    }
+  
+    tch_pfjet->AddFriend(tch_ev);
+    tch_pfjet->AddFriend(tch_hlt);
+    tch_pfjet->AddFriend(tch_skim);
+    //tch_pfjet->AddFriend(tch_trgobj);
+    tch_pfjet->AddFriend(tch_calojet);
+
+    //! Disable branches 
+    //! Jet Tree
+    tch_pfjet->SetBranchStatus("*",0,0);
+    tch_pfjet->SetBranchStatus("nref" ,1,0);
+    tch_pfjet->SetBranchStatus("rawpt",1,0);
+    tch_pfjet->SetBranchStatus("jtpt" ,1,0);
+    tch_pfjet->SetBranchStatus("jtpu" ,1,0);
+    tch_pfjet->SetBranchStatus("jteta",1,0);
+    tch_pfjet->SetBranchStatus("jtphi",1,0);
+    tch_pfjet->SetBranchStatus("neutralSum",1,0);
+    tch_pfjet->SetBranchStatus("chargedSum",1,0);
+    tch_pfjet->SetBranchStatus("photonSum",1,0);
+    tch_pfjet->SetBranchStatus("eSum",1,0);
+    tch_pfjet->SetBranchStatus("muSum",1,0);
+    tch_pfjet->SetBranchStatus("neutralMax",1,0);
+    tch_pfjet->SetBranchStatus("chargedMax",1,0);
+    tch_pfjet->SetBranchStatus("photonMax",1,0);
+    tch_pfjet->SetBranchStatus("eMax",1,0);
+    tch_pfjet->SetBranchStatus("muMax",1,0);
+    tch_pfjet->SetBranchStatus("hcalSum",1,0);
+    tch_pfjet->SetBranchStatus("ecalSum",1,0);
+
+    tch_pfjet->SetBranchStatus("run",1,0);
+    tch_pfjet->SetBranchStatus("evt",1,0);
+    tch_pfjet->SetBranchStatus("lumi",1,0);
+    tch_pfjet->SetBranchStatus("hiNpix",1,0);
+    tch_pfjet->SetBranchStatus("hiBin",1,0);
+    tch_pfjet->SetBranchStatus("vz",1,0);
+
+    // tch_pfjet->SetBranchStatus("id",1,0);
+    // tch_pfjet->SetBranchStatus("pt",1,0);
+    // tch_pfjet->SetBranchStatus("eta",1,0);
+    // tch_pfjet->SetBranchStatus("phi",1,0);
+
+    if( kSpecies == "pbpb" ){
+      if ( kDataset == "data" ){
+	tch_pfjet->SetBranchStatus("HLT_HIJet55_v1",1,0);
+	tch_pfjet->SetBranchStatus("HLT_HIJet55_v1_Prescl",1,0);
+	tch_pfjet->SetBranchStatus("HLT_HIJet65_v1",1,0);
+	tch_pfjet->SetBranchStatus("HLT_HIJet65_v1_Prescl",1,0);
+	tch_pfjet->SetBranchStatus("HLT_HIJet80_v1",1,0);
+	tch_pfjet->SetBranchStatus("HLT_HIJet80_v1_Prescl",1,0);
+	// tch_pfjet->SetBranchStatus("L1_SingleJet36_BptxAND",1,0);
+	// tch_pfjet->SetBranchStatus("L1_SingleJet36_BptxAND_Prescl",1,0);
+	// tch_pfjet->SetBranchStatus("L1_SingleJet52_BptxAND",1,0);
+	// tch_pfjet->SetBranchStatus("L1_SingleJet52_BptxAND_Prescl",1,0);
+      }else{
+	tch_pfjet->SetBranchStatus("HLT_HIJet55_v7",1,0);
+	tch_pfjet->SetBranchStatus("HLT_HIJet55_v7_Prescl",1,0);
+	tch_pfjet->SetBranchStatus("HLT_HIJet65_v7",1,0);
+	tch_pfjet->SetBranchStatus("HLT_HIJet65_v7_Prescl",1,0);
+	tch_pfjet->SetBranchStatus("HLT_HIJet80_v7",1,0);
+	tch_pfjet->SetBranchStatus("HLT_HIJet80_v7_Prescl",1,0);
+      }
+      tch_pfjet->SetBranchStatus("pcollisionEventSelection",1,0);
+    }else{
+      tch_pfjet->SetBranchStatus("HLT_PAJet40_NoJetID_v1",1,0);
+      tch_pfjet->SetBranchStatus("HLT_PAJet40_NoJetID_v1_Prescl",1,0);
+      tch_pfjet->SetBranchStatus("HLT_PAJet60_NoJetID_v1",1,0);
+      tch_pfjet->SetBranchStatus("HLT_PAJet60_NoJetID_v1_Prescl",1,0);
+      tch_pfjet->SetBranchStatus("HLT_PAJet80_NoJetID_v1",1,0);
+      tch_pfjet->SetBranchStatus("HLT_PAJet80_NoJetID_v1_Prescl",1,0);
+      tch_pfjet->SetBranchStatus("pPAcollisionEventSelectionPA",1,0);
+    }
+    tch_pfjet->SetBranchStatus("pHBHENoiseFilter",1,0);
+  
+    if( kDataset == "mc"){
+      tch_pfjet->SetBranchStatus("pthat",1,0);    
+      tch_pfjet->SetBranchStatus("subid" ,1,0);
+      tch_pfjet->SetBranchStatus("refpt" ,1,0);
+      tch_pfjet->SetBranchStatus("refeta",1,0);
+      tch_pfjet->SetBranchStatus("refphi",1,0);
+      tch_pfjet->SetBranchStatus("refdrjt",1,0);
+    }
+  
+
+
+    std::cout<<"\t"<<std::endl;
+    std::cout<<"\t"<<std::endl;
+    std::cout<<"**************************************************** "<<std::endl;
+    std::cout<<Form("Dataset : %s, Species : %s, Jet Algorithm :  %s ",kDataset.c_str(), kSpecies.c_str(), kAlgName.c_str())<<std::endl;
+    std::cout<<Form("Outfile : %s",outfile.c_str())<<std::endl;
+    std::cout<<Form("vertex z (c.m.) cut : %0.3f ",kvzcut)<<std::endl;
+    std::cout<<Form("Reco pT cut : %0.3f ; Reco eta cut : %0.3f ",kptrecocut, ketacut)<<std::endl;
+    std::cout<<Form("CALO-PF jet matching delta R cut   : %0.3f ",kdelrmatch)<<std::endl;
+    std::cout<<"**************************************************** "<<std::endl;
+    std::cout<<"\t"<<std::endl;
+    std::cout<<"\t"<<std::endl;
+
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////
+    Long64_t nbytes=0;
+    Long64_t nentries = tch_pfjet->GetEntries();
+    std::cout<<Form("# of entries in TTree for %s %s : ",kAlgName.c_str(),kSpecies.c_str())<<nentries<<std::endl;
+
+    double wxs=1.;
+    if( kDataset == "mc" ){
+      TEventList* el = new TEventList("el","el");
+      stringstream selection; selection<<"pthat<="<<kMaxpthat;
+      tch_pfjet->Draw(">>el",selection.str().c_str());
+      double fentries = (double)el->GetN();
+      std::cout<<"tree entries  :  "<<kAlgName.c_str()<<" algorithm : " << nentries<<" elist: "<< fentries <<std::endl;
+      delete el;
+      double tmpw = GetXsec(kMaxpthat);
+      wxs = tmpw/(fentries/100000.);
+    }
+
+    //! Start event loop
+    for (Long64_t i=0; i<nentries;i++) {
+      nbytes += tch_pfjet->GetEntry(i);
+      
+      if(printDebug && i==5000)break;
+      //if(i==100)break;
+      
+      int iFill=1;
+      if( i%2==1 )iFill=0;
+
+      int trigFill=0;
+      if( kSpecies == "pp" ){
+	if( jet40==1 && jet60==0 && jet80==0 )trigFill=1;
+	if( jet60==1 && jet80==0 )trigFill=1;      
+	if( jet80==1 )trigFill=1;      
+      }else{
+	if( jet55==1 && jet65==0 && jet80==0 )trigFill=1;
+	if( jet65==1 && jet80==0 )trigFill=1;      
+	if( jet80==1 )trigFill=1;      
+      }
+
+      float rndm=gRandom->Rndm();
+
+      hEvents_Total->Fill(rndm);
+      if( kSpecies == "pp" ){
+	if(jet40)hEvents_jet40->Fill(rndm);
+	if(jet40_prescl)hEvents_jet40_prescl->Fill(jet40_prescl,rndm);
+	if(jet60)hEvents_jet60->Fill(rndm);
+	if(jet60_prescl)hEvents_jet60_prescl->Fill(jet60_prescl,rndm);
+	if(jet80)hEvents_jet80->Fill(rndm);
+	if(jet80_prescl)hEvents_jet80_prescl->Fill(jet80_prescl,rndm);
+
+	if(jet40==1 && jet60==0 && jet80==0)hEvents_jet40_nojet60_nojet80->Fill(rndm);
+	if(jet60==1 && jet80==0)hEvents_jet60_nojet80->Fill(rndm);
+      }else{
+	if(jet55)hEvents_jet55->Fill(rndm);
+	if(jet55_prescl)hEvents_jet55_prescl->Fill(jet55_prescl,rndm);
+	if(jet65)hEvents_jet65->Fill(rndm);
+	if(jet65_prescl)hEvents_jet65_prescl->Fill(jet65_prescl,rndm);
+	if(jet80)hEvents_jet80->Fill(rndm);
+	if(jet80_prescl)hEvents_jet80_prescl->Fill(jet80_prescl,rndm);
+
+	if(jet55==1 && jet65==0 && jet80==0)hEvents_jet55_nojet65_nojet80->Fill(rndm);
+	if(jet65==1 && jet80==0)hEvents_jet65_nojet80->Fill(rndm);
+      }
+
+      if( kDataset == "data" ){
+	if(pcollisionEventSelection)hEvents_pCollEvent->Fill(rndm);
+	if(pcollisionEventSelection && pHBHENoiseFilter)hEvents_pHBHENoise->Fill(rndm);
+	if(pcollisionEventSelection && pHBHENoiseFilter && fabs(vz)<kvzcut )hEvents_Vzcut->Fill(rndm);
+	if(pcollisionEventSelection==0 || pHBHENoiseFilter==0 || fabs(vz) > kvzcut){
+	  hEvents_bad->Fill(rndm);
+	  continue;
+	}
+      }else if( kDataset == "mc" ){//! HBHENoiseFilter
+	if(pcollisionEventSelection)hEvents_pCollEvent->Fill(rndm);
+	if(pcollisionEventSelection)hEvents_pHBHENoise->Fill(rndm);
+	if(pcollisionEventSelection && fabs(vz)<kvzcut )hEvents_Vzcut->Fill(rndm);
+	if(pcollisionEventSelection==0 || fabs(vz) > kvzcut){
+	  hEvents_bad->Fill(rndm);
+	  continue;
+	}
+      }
+    
+      int iCent = -1;
+      if( kSpecies == "pp" )iCent=ncen-1;
+      else iCent = GetCentBin(hiBin);
+      if(iCent<0 || iCent>=ncen)continue;
+
+      if ( kSpecies == "pbpb" ){
+	//! SuperNovae events use calo jets
+	//int lowjetCounter=0;
+	int jetCounter=0;
+	for(int g = 0;g<nref_calo;g++){
+	  if( fabs(jteta_calo[g]) < 2. && jtpt_calo[g]>=50. ){ //to select inside
+	    jetCounter++;
+	  }//eta selection cut
+	}// jet loop
+	// apply the correct supernova selection cut rejection here:
+	if( hiNpix > 38000 - 500*jetCounter ){
+	  hEvents_supernova->Fill(rndm);
+	  continue;
+	}
+      }
+      if( nref==0 && nref_calo==0 ){
+	hEvents_nopfcalo->Fill(rndm);
 	continue;
       }
-    }
-    if( nref==0 && nref_calo==0 ){
-      hEvents_nopfcalo->Fill(rndm);
-      continue;
-    }
-    //if( lowjetCounter == 0 )continue;
 
-    if( kDataset == "mc" && pthat > kMaxpthat ){
-      hEvents_maxpthat->Fill(rndm);
-      continue;
-    }
-    hEvents_Cent->Fill(rndm);
-
-    //! ----------------------------------------------------------------------------
-    // int iStat=0;
-    // for(int pj=0; pj<nref; pj++){ //! PFjet
-    //   if( pfrefdrjt[pj] > 0.3 && sid[pj]==0 && pfrefpt[pj] > 50. && fabs(jteta[pj]) < ketacut){
-    // 	std::cout << "\t\t Found an interesting cand : "<< i << " dr : " << pfrefdrjt[pj] << " refpt : " << pfrefpt[pj] << " recopt : " << jtpt[pj] << std::endl;
-    // 	iStat=1;
-    //   }
-    // }
-    // if( iStat )printDebug=true;
-    // else printDebug=false;
-    //! ----------------------------------------------------------------------------    
-
-    if(printDebug)std::cout << "------------------------------------Start Event # " << i <<"------------------------------------------------------------------ " << std::endl;
-    //std::cout<<" ***** Event # " <<i<<"\t vz  : "<<vz<<"\t hiBin : "<<hiBin<<"\t  # of PF jets "<<nref<<" # of calojets  "<<nref_calo<<std::endl;
-    if(i%50000==0)std::cout<<" ********** Event # " <<i<<"\t vz  : "<<vz<<"\t hiBin : "<<hiBin<<"\t  # of PF jets "<<nref<< "  # of Calo jets " <<nref_calo<<std::endl;
-    
-    int pfjets=0;
-    int calojets=0;
-    
-    std::vector <Jet> vPFJets, vCaloJets;
-    std::vector <int> pfid(nref), caloid(nref_calo);
-
-    
-    if(printDebug)std::cout << " PF jets : " << std::endl;
-
-    for(int pj=0; pj<nref; pj++){ //! PFjet
-      
-      if( rawpt[pj] < kptrawcut || jtpt[pj] < kptrecocut ) continue;
-      if( fabs(jteta[pj]) > ketacut ) continue;
-
-      if ( kDataset == "mc" ){
-       	if ( pfrefpt[pj] > 3.*pthat )continue;
+      if( kDataset == "mc" && pthat > kMaxpthat ){
+	hEvents_maxpthat->Fill(rndm);
+	continue;
       }
+      hEvents_Cent->Fill(rndm);
+
+
+      if(printDebug)std::cout << "------------------------------------Start Event # " << i <<"------------------------------------------------------------------ " << std::endl;
+      if(i%50000==0)std::cout<<" ********** Event # " <<i<<"\t vz  : "<<vz<<"\t hiBin : "<<hiBin<<"\t  # of PF jets "<<nref<< "  # of Calo jets " <<nref_calo<<std::endl;
       
-      Jet pfj;
-      pfj.id  = pj;
-      pfj.eta = jteta[pj];
-      pfj.phi = jtphi[pj];
-      pfj.pt  = jtpt [pj];
+      int pfjets=0;
+      int calojets=0;
+      
+      std::vector <Jet> vPFJets, vCaloJets;
+      std::vector <int> pfid(nref), caloid(nref_calo);
+
+    
+      if(printDebug)std::cout << " PF jets : " << std::endl;
+
+      for(int pj=0; pj<nref; pj++){ //! PFjet
+      
+	if( rawpt[pj] < kptrawcut || jtpt[pj] < kptrecocut ) continue;
+	if( fabs(jteta[pj]) > ketacut ) continue;
+      
+	Jet pfj;
+	pfj.id  = pj;
+	pfj.eta = jteta[pj];
+	pfj.phi = jtphi[pj];
+	pfj.pt  = jtpt [pj];
+
+	if(printDebug){
+	  if( kDataset == "mc" )std::cout <<"\t" << pj << "  pt : " << jtpt[pj] << " eta : "  << jteta[pj] << " phi : " << jtphi[pj] << " subid : " << sid[pj] << " dr : " << pfrefdrjt[pj] << std::endl;
+	  else std::cout <<"\t"<< pj << "  pt : " << jtpt[pj] << " eta : "  << jteta[pj] << " phi : " << jtphi[pj] << std::endl;
+	}
+	vPFJets.push_back(pfj);
+	pfjets++;
+      }    
 
       if(printDebug){
-	if( kDataset == "mc" )std::cout <<"\t" << pj << "  pt : " << jtpt[pj] << " eta : "  << jteta[pj] << " phi : " << jtphi[pj] << " subid : " << sid[pj] << " dr : " << pfrefdrjt[pj] << std::endl;
-	else std::cout <<"\t"<< pj << "  pt : " << jtpt[pj] << " eta : "  << jteta[pj] << " phi : " << jtphi[pj] << std::endl;
+	std::cout << std::endl;
+	std::cout << " Calo jets : " << std::endl;
       }
-      vPFJets.push_back(pfj);
-      pfjets++;
-    }    
-
-    if(printDebug){
-      std::cout << std::endl;
-      std::cout << " Calo jets : " << std::endl;
-    }
-    for(int cj=0; cj<nref_calo; cj++){ //! CaloJet
+      for(int cj=0; cj<nref_calo; cj++){ //! CaloJet
       
-      if( rawpt_calo[cj] < kptrawcut || jtpt_calo[cj] < kptrecocut) continue;
-      if( fabs(jteta_calo[cj]) > ketacut ) continue;
+	if( rawpt_calo[cj] < kptrawcut || jtpt_calo[cj] < kptrecocut) continue;
+	if( fabs(jteta_calo[cj]) > ketacut ) continue;
 
+	Jet clj;
+	clj.id  = cj;
+	clj.eta = jteta_calo[cj];
+	clj.phi = jtphi_calo[cj];
+	clj.pt  = jtpt_calo[cj];
+
+	if(printDebug){
+	  if( kDataset == "mc" )std::cout <<"\t" << cj << "  pt : " << jtpt_calo[cj] << " eta : "  << jteta_calo[cj] << " phi : " << jtphi_calo[cj] << " subid : " << sid_calo[cj] << " dr : " << refdrjt_calo[cj] << std::endl;
+	  else  std::cout <<"\t" << cj << "  pt : " << jtpt_calo[cj] << " eta : "  << jteta_calo[cj] << " phi : " << jtphi_calo[cj] << std::endl;
+	}
+	vCaloJets.push_back(clj);
+	calojets++;
+      }//! calo jet loop
+      if(printDebug)std::cout << std::endl;
+      if(pfjets==0 && calojets==0){
+	if(printDebug){
+	  std::cout <<" XXXXXXXXXXX  No Calo and PF jets passed the cuts " << std::endl;
+	  std::cout << "------------------------------------End Event # " << i <<"------------------------------------------------------------------ " << "\n"<<std::endl;
+	}
+	hEvents_nopfcalo->Fill(rndm);
+	continue;
+      }
+
+      bool onlyCalo   = (pfjets==0 && calojets >0) ? true : false;
+      bool onlyPF     = (pfjets>0  && calojets==0) ? true : false;
+      bool bothPFCalo = (pfjets>0  && calojets >0) ? true : false;
+
+      int matchedJets=0;
+      int unmatchedPFJets=0;
+      int unmatchedCaloJets=0;
+
+      double tmpwt = 1.;
       if( kDataset == "mc" ){
-       	if ( refpt_calo[cj] > 3.*pthat )continue;
-      }
-      
-      Jet clj;
-      clj.id  = cj;
-      clj.eta = jteta_calo[cj];
-      clj.phi = jtphi_calo[cj];
-      clj.pt  = jtpt_calo[cj];
+	double wvz  = fVz->Eval(vz);
+	double wcen = hCentWeight->GetBinContent(hCentWeight->FindBin(hiBin));
+	if ( kSpecies == "pbpb" )tmpwt = (wxs*wvz*wcen*lumi_scale);
+	else tmpwt = wxs*lumi_scale;
+      }else tmpwt = 1.;
 
-      if(printDebug){
-	if( kDataset == "mc" )std::cout <<"\t" << cj << "  pt : " << jtpt_calo[cj] << " eta : "  << jteta_calo[cj] << " phi : " << jtphi_calo[cj] << " subid : " << sid_calo[cj] << " dr : " << refdrjt_calo[cj] << std::endl;
-	else  std::cout <<"\t" << cj << "  pt : " << jtpt_calo[cj] << " eta : "  << jteta_calo[cj] << " phi : " << jtphi_calo[cj] << std::endl;
+      if(printDebug)std::cout <<" Total ==>  # of PF jets : " << pfjets << ", # of calojets : "  << calojets <<"\n"<<std::endl;
+
+      std::vector < Jet >::const_iterator iJet, jJet;
+
+      if( onlyPF ){
+      
+	for(iJet = vPFJets.begin(); iJet != vPFJets.end(); ++iJet){ //! PFjet
+
+	  int pj = (*iJet).id; 
+
+	  Float_t Sumcand = chargedSum[pj] + neutralSum[pj] + photonSum[pj] + muonSum[pj];
+	  bool wJetId  = (eleMax[pj]/Sumcand < 0.05);
+	  if( kSpecies == "pp" && kDataset=="mc" )wJetId=true;
+
+	  if( sid[pj] != 0)continue;
+	  if( pfrefpt[pj] > 2.5*pthat ) continue;
+	
+	  if( trigFill ) {
+	    if( iFill ){
+	      if( fabs(pfrefdrjt[pj]) < kdelrcut ){
+		//! w/o jet id
+		hgen   [0][iCent]->Fill(pfrefpt[pj],tmpwt);
+		hrec   [0][iCent]->Fill(jtpt[pj],tmpwt);
+		hmatrix[0][iCent]->Fill(pfrefpt[pj],jtpt[pj],tmpwt);
+		
+		hgen_f   [0][iCent]->Fill(pfrefpt[pj],tmpwt);
+		hrec_f   [0][iCent]->Fill(jtpt[pj],tmpwt);
+		hmatrix_f[0][iCent]->Fill(pfrefpt[pj],jtpt[pj],tmpwt);
+		hresp    [0][iCent]->Fill(jtpt[pj], pfrefpt[pj], tmpwt);
+		hresp_f  [0][iCent]->Fill(jtpt[pj], pfrefpt[pj], tmpwt);
+		
+		hgen_um   [0][iCent]->Fill(pfrefpt[pj],tmpwt);
+		hrec_um   [0][iCent]->Fill(jtpt[pj],tmpwt);
+		hmatrix_um[0][iCent]->Fill(pfrefpt[pj],jtpt[pj],tmpwt);
+		
+		hgen_um_f   [0][iCent]->Fill(pfrefpt[pj],tmpwt);
+		hrec_um_f   [0][iCent]->Fill(jtpt[pj],tmpwt);
+		hmatrix_um_f[0][iCent]->Fill(pfrefpt[pj],jtpt[pj],tmpwt);
+		hresp_um    [0][iCent]->Fill(jtpt[pj], pfrefpt[pj], tmpwt);
+		hresp_um_f  [0][iCent]->Fill(jtpt[pj], pfrefpt[pj], tmpwt);
+
+		if( wJetId ){
+		  hgen   [1][iCent]->Fill(pfrefpt[pj],tmpwt);
+		  hrec   [1][iCent]->Fill(jtpt[pj],tmpwt);
+		  hmatrix[1][iCent]->Fill(pfrefpt[pj],jtpt[pj],tmpwt);
+		  
+		  hgen_f   [1][iCent]->Fill(pfrefpt[pj],tmpwt);
+		  hrec_f   [1][iCent]->Fill(jtpt[pj],tmpwt);
+		  hmatrix_f[1][iCent]->Fill(pfrefpt[pj],jtpt[pj],tmpwt);
+		  hresp    [1][iCent]->Fill(jtpt[pj], pfrefpt[pj], tmpwt);
+		  hresp_f  [1][iCent]->Fill(jtpt[pj], pfrefpt[pj], tmpwt);
+		  
+		  hgen_um   [1][iCent]->Fill(pfrefpt[pj],tmpwt);
+		  hrec_um   [1][iCent]->Fill(jtpt[pj],tmpwt);
+		  hmatrix_um[1][iCent]->Fill(pfrefpt[pj],jtpt[pj],tmpwt);
+		  
+		  hgen_um_f   [1][iCent]->Fill(pfrefpt[pj],tmpwt);
+		  hrec_um_f   [1][iCent]->Fill(jtpt[pj],tmpwt);
+		  hmatrix_um_f[1][iCent]->Fill(pfrefpt[pj],jtpt[pj],tmpwt);
+		  hresp_um    [1][iCent]->Fill(jtpt[pj], pfrefpt[pj], tmpwt);
+		  hresp_um_f  [1][iCent]->Fill(jtpt[pj], pfrefpt[pj], tmpwt);
+		}
+	      }else{
+		hresp     [0][iCent]->Miss(pfrefpt[pj], tmpwt);
+		hresp_um  [0][iCent]->Miss(pfrefpt[pj], tmpwt);
+		hresp_f   [0][iCent]->Miss(pfrefpt[pj], tmpwt);
+		hresp_um_f[0][iCent]->Miss(pfrefpt[pj], tmpwt);
+		if( wJetId ){
+		  hresp     [1][iCent]->Miss(pfrefpt[pj], tmpwt);
+		  hresp_um  [1][iCent]->Miss(pfrefpt[pj], tmpwt);
+		  hresp_f   [1][iCent]->Miss(pfrefpt[pj], tmpwt);
+		  hresp_um_f[1][iCent]->Miss(pfrefpt[pj], tmpwt);
+		}
+	      }
+	    }else{
+	      if( fabs(pfrefdrjt[pj]) < kdelrcut ){
+		hmatrix_c  [0][iCent]->Fill(pfrefpt[pj],jtpt[pj],tmpwt);
+		hmatrix_c_f[0][iCent]->Fill(pfrefpt[pj],jtpt[pj],tmpwt);
+		hmatrix_um_c[0][iCent]->Fill(pfrefpt[pj],jtpt[pj],tmpwt);
+		hmatrix_um_c_f[0][iCent]->Fill(pfrefpt[pj],jtpt[pj],tmpwt);
+		
+		hgen_c     [0][iCent]->Fill(pfrefpt[pj],tmpwt);
+		hgen_c_f   [0][iCent]->Fill(pfrefpt[pj],tmpwt);
+		hgen_um_c  [0][iCent]->Fill(pfrefpt[pj],tmpwt);
+		hgen_um_c_f[0][iCent]->Fill(pfrefpt[pj],tmpwt);
+		
+		hrec_c     [0][iCent]->Fill(jtpt[pj],tmpwt);
+		hrec_c_f   [0][iCent]->Fill(jtpt[pj],tmpwt);
+		hrec_um_c  [0][iCent]->Fill(jtpt[pj],tmpwt);
+		hrec_um_c_f[0][iCent]->Fill(jtpt[pj],tmpwt);
+		if( wJetId ){
+		  hmatrix_c  [1][iCent]->Fill(pfrefpt[pj],jtpt[pj],tmpwt);
+		  hmatrix_c_f[1][iCent]->Fill(pfrefpt[pj],jtpt[pj],tmpwt);
+		  hmatrix_um_c[1][iCent]->Fill(pfrefpt[pj],jtpt[pj],tmpwt);
+		  hmatrix_um_c_f[1][iCent]->Fill(pfrefpt[pj],jtpt[pj],tmpwt);
+		  
+		  hgen_c     [1][iCent]->Fill(pfrefpt[pj],tmpwt);
+		  hgen_c_f   [1][iCent]->Fill(pfrefpt[pj],tmpwt);
+		  hgen_um_c  [1][iCent]->Fill(pfrefpt[pj],tmpwt);
+		  hgen_um_c_f[1][iCent]->Fill(pfrefpt[pj],tmpwt);
+		  
+		  hrec_c     [1][iCent]->Fill(jtpt[pj],tmpwt);
+		  hrec_c_f   [1][iCent]->Fill(jtpt[pj],tmpwt);
+		  hrec_um_c  [1][iCent]->Fill(jtpt[pj],tmpwt);
+		  hrec_um_c_f[1][iCent]->Fill(jtpt[pj],tmpwt);
+		}
+	      }
+	    }
+	  }	
+	  if(printDebug)std::cout <<" unmatched PF jets w ncalo=0 : " << unmatchedPFJets << "  pt : " << jtpt[pj] << " eta : "  << jteta[pj] << " phi : " << jtphi[pj] << " dr : " << pfrefdrjt[pj] <<std::endl;
+	  unmatchedPFJets++;
+	}
       }
-      vCaloJets.push_back(clj);
-      calojets++;
-    }//! calo jet loop
-    if(printDebug)std::cout << std::endl;
-    if(pfjets==0 && calojets==0){
+      else if( onlyCalo ){
+	// for(iJet = vCaloJets.begin(); iJet != vCaloJets.end(); ++iJet){ //! Calojet
+	
+	//   int cj = (*iJet).id; 	
+	
+	//   if(printDebug)std::cout <<" unmatched CALO jets w npf=0 : " << unmatchedCaloJets << "  pt : " << jtpt_calo[cj] << " eta : "  << jteta_calo[cj] << " phi : " << jtphi_calo[cj] << " dr : " << refdrjt_calo[cj] << std::endl;
+	//   unmatchedCaloJets++;
+	// }
+      }
+      else if( bothPFCalo ){
+
+	CaloPFMatchedJets mCaloPFMatchedJets;
+	for(iJet = vCaloJets.begin(); iJet != vCaloJets.end(); ++iJet){ //! Calojet      
+	
+	  for(jJet = vPFJets.begin(); jJet != vPFJets.end(); ++jJet){ //! PFjet
+	  
+	    mCaloPFMatchedJets.insert(std::make_pair(*iJet,*jJet));
+	  
+	  }//! calo jet loop
+	}//! PF jet loop
+      
+	CPFItr itr;
+	//! Matched jets (PF jet matched to Calo jet)
+	for(itr = mCaloPFMatchedJets.begin(); itr != mCaloPFMatchedJets.end(); ++itr){
+
+	  CaloPFJetPair jetpair = (*itr);
+	  Jet clj = jetpair.first;
+	  Jet pfj = jetpair.second;
+
+	  float delr  = deltaR(clj.eta, clj.phi, pfj.eta, pfj.phi);
+	  //float delpt = fabs(clj.pt - pfj.pt);
+	  if( delr < kdelrmatch && caloid[clj.id]==0 ){
+	  
+	    Float_t Sumcand = chargedSum[pfj.id] + neutralSum[pfj.id] + photonSum[pfj.id] + muonSum[pfj.id];
+	    Float_t ePFSel  = (18./7.*jtpt_calo[clj.id]/jtpt[pfj.id]) - 9./7.;
+	    bool wJetId     = (jtpt_calo[clj.id]/jtpt[pfj.id]  > 0.50) && (jtpt_calo[clj.id]/jtpt[pfj.id] <= 0.85) && (eleMax[pfj.id]/Sumcand < ePFSel);
+
+	    if( kSpecies == "pp" && kDataset=="mc" )wJetId=true;
+	  
+	    if( trigFill ) {
+	      if( iFill ){
+		if( pfrefpt[pfj.id] < 2.5*pthat ) {
+		  if( sid[pfj.id] == 0 ){
+		    if ( fabs(pfrefdrjt[pfj.id]) < kdelrcut ){
+		      
+		      //! w/o jet id
+		      hgen[0][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
+		      hrec[0][iCent]->Fill(jtpt[pfj.id],tmpwt);
+		      hmatrix[0][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
+		      
+		      hgen_f[0][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
+		      hrec_f[0][iCent]->Fill(jtpt[pfj.id],tmpwt);
+		      hmatrix_f[0][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
+		      
+		      hgen_m[0][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
+		      hrec_m[0][iCent]->Fill(jtpt[pfj.id],tmpwt);
+		      hmatrix_m[0][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
+		    
+		      hgen_m_f[0][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
+		      hrec_m_f[0][iCent]->Fill(jtpt[pfj.id],tmpwt);
+		      hmatrix_m_f[0][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
+
+		      hresp  [0][iCent]->Fill(jtpt[pfj.id], pfrefpt[pfj.id], tmpwt);
+		      hresp_m[0][iCent]->Fill(jtpt[pfj.id], pfrefpt[pfj.id], tmpwt);		    
+
+		      hresp_f  [0][iCent]->Fill(jtpt[pfj.id], pfrefpt[pfj.id], tmpwt);
+		      hresp_m_f[0][iCent]->Fill(jtpt[pfj.id], pfrefpt[pfj.id], tmpwt);		    
+		    
+		      if( wJetId ){
+			hgen[1][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
+			hrec[1][iCent]->Fill(jtpt[pfj.id],tmpwt);
+			hmatrix[1][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
+		      
+			hgen_f[1][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
+			hrec_f[1][iCent]->Fill(jtpt[pfj.id],tmpwt);
+			hmatrix_f[1][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
+		      
+			hgen_m[1][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
+			hrec_m[1][iCent]->Fill(jtpt[pfj.id],tmpwt);
+			hmatrix_m[1][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
+		      
+			hgen_m_f[1][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
+			hrec_m_f[1][iCent]->Fill(jtpt[pfj.id],tmpwt);
+			hmatrix_m_f[1][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
+
+			hresp  [1][iCent]->Fill(jtpt[pfj.id], pfrefpt[pfj.id], tmpwt);
+			hresp_m[1][iCent]->Fill(jtpt[pfj.id], pfrefpt[pfj.id], tmpwt);		    
+			hresp_f  [1][iCent]->Fill(jtpt[pfj.id], pfrefpt[pfj.id], tmpwt);
+			hresp_m_f[1][iCent]->Fill(jtpt[pfj.id], pfrefpt[pfj.id], tmpwt);		    
+		      }
+		    }else{
+		      hresp[0][iCent]->Miss(pfrefpt[pfj.id], tmpwt);
+		      hresp_m[0][iCent]->Miss(pfrefpt[pfj.id], tmpwt);
+		      hresp_f[0][iCent]->Miss(pfrefpt[pfj.id], tmpwt);
+		      hresp_m_f[0][iCent]->Miss(pfrefpt[pfj.id], tmpwt);
+		      if( wJetId ){
+			hresp[1][iCent]->Miss(pfrefpt[pfj.id], tmpwt);
+			hresp_m[1][iCent]->Miss(pfrefpt[pfj.id], tmpwt);
+			hresp_f[1][iCent]->Miss(pfrefpt[pfj.id], tmpwt);
+			hresp_m_f[1][iCent]->Miss(pfrefpt[pfj.id], tmpwt);
+		      }
+		    }
+		  }
+		}
+	      }else{
+		if( pfrefpt[pfj.id] < 2.5*pthat ) {
+		  if( sid[pfj.id] == 0 ){
+		    if( fabs(pfrefdrjt[pfj.id]) < kdelrcut ){ 
+		      hmatrix_c[0][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
+		      hmatrix_c_f[0][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
+		      hmatrix_m_c[0][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
+		      hmatrix_m_c_f[0][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
+
+		      hgen_c[0][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
+		      hgen_c_f[0][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
+		      hgen_m_c[0][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
+		      hgen_m_c_f[0][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
+		    
+		      hrec_c[0][iCent]->Fill(jtpt[pfj.id],tmpwt);
+		      hrec_c_f[0][iCent]->Fill(jtpt[pfj.id],tmpwt);
+		      hrec_m_c[0][iCent]->Fill(jtpt[pfj.id],tmpwt);
+		      hrec_m_c_f[0][iCent]->Fill(jtpt[pfj.id],tmpwt);
+		      if( wJetId ){
+			hmatrix_c[1][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
+			hmatrix_c_f[1][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
+			hmatrix_m_c[1][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
+			hmatrix_m_c_f[1][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
+			hgen_c[1][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
+			hgen_c_f[1][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
+			hgen_m_c[1][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
+			hgen_m_c_f[1][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
+			hrec_c[1][iCent]->Fill(jtpt[pfj.id],tmpwt);
+			hrec_c_f[1][iCent]->Fill(jtpt[pfj.id],tmpwt);
+			hrec_m_c[1][iCent]->Fill(jtpt[pfj.id],tmpwt);
+			hrec_m_c_f[1][iCent]->Fill(jtpt[pfj.id],tmpwt);
+		      }
+		    }
+		  }
+		}
+	      }
+	    }
+	    if(printDebug)std::cout <<"\t *** Matched" << " id : " << pfj.id << " " << clj.id << " pfpt :  " << pfj.pt << " calopt : " << clj.pt << " spf : " << sid[pfj.id] << " scj : " << sid [clj.id] << " dr : " << pfrefdrjt[pfj.id] << std::endl;
+	    //if( sid[pfj.id]!=0 && pfpt>20 )std::cout <<"\t *** Matched" << " pthat : " << pthat << " refpt : " << refpt << " pfpt :  " << pfj.pt << " calopt : " << clj.pt << " spf : " << sid[pfj.id] << " scj : " << sid [clj.id] << std::endl;	  
+	  
+	    matchedJets++;	  
+	    pfid  [pfj.id] = 1;
+	    caloid[clj.id] = 1;
+	  }
+	}//! iJet
+      
+	// //! Unmatched jets
+	for(itr = mCaloPFMatchedJets.begin(); itr != mCaloPFMatchedJets.end(); ++itr){
+	  CaloPFJetPair jetpair = (*itr);
+
+	  Jet clj = jetpair.first;
+	  Jet pfj = jetpair.second;
+
+	  //float delr  = deltaR(pfj.eta, pfj.phi, clj.eta, clj.phi);
+	  //float delpt = fabs(pfj.pt - clj.pt);
+	  //if( pfid[pfj.id]==1 || caloid[clj.id]==1 )continue;
+      
+	  if( pfid[pfj.id] == 0 ){//! Unmatched PF jet
+
+	    Float_t Sumcand = chargedSum[pfj.id] + neutralSum[pfj.id] + photonSum[pfj.id] + muonSum[pfj.id];
+	    bool wJetId  = (eleMax[pfj.id]/Sumcand < 0.05);
+	  
+	    if( trigFill ) {
+	      if( iFill ){
+		if( pfrefpt[pfj.id] < 2.5*pthat) {
+		  if( sid[pfj.id] == 0 ){ 
+		    if( fabs(pfrefdrjt[pfj.id]) < kdelrcut ){ 
+		      
+		      //! w/o jet id
+		      hgen[0][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
+		      hrec[0][iCent]->Fill(jtpt[pfj.id],tmpwt);
+		      hmatrix[0][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
+		    
+		      hgen_f[0][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
+		      hrec_f[0][iCent]->Fill(jtpt[pfj.id],tmpwt);
+		      hmatrix_f[0][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
+		    
+		      hgen_um[0][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
+		      hrec_um[0][iCent]->Fill(jtpt[pfj.id],tmpwt);
+		      hmatrix_um[0][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
+		    
+		      hgen_um_f[0][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
+		      hrec_um_f[0][iCent]->Fill(jtpt[pfj.id],tmpwt);
+		      hmatrix_um_f[0][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
+
+		      hresp  [0][iCent]->Fill(jtpt[pfj.id], pfrefpt[pfj.id], tmpwt);
+		      hresp_um[0][iCent]->Fill(jtpt[pfj.id], pfrefpt[pfj.id], tmpwt);		    
+		      hresp_f  [0][iCent]->Fill(jtpt[pfj.id], pfrefpt[pfj.id], tmpwt);
+		      hresp_um_f[0][iCent]->Fill(jtpt[pfj.id], pfrefpt[pfj.id], tmpwt);		    
+		    
+		      if( wJetId ){
+			hgen[1][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
+			hrec[1][iCent]->Fill(jtpt[pfj.id],tmpwt);
+			hmatrix[1][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
+		      
+			hgen_f[1][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
+			hrec_f[1][iCent]->Fill(jtpt[pfj.id],tmpwt);
+			hmatrix_f[1][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
+		      
+			hgen_um[1][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
+			hrec_um[1][iCent]->Fill(jtpt[pfj.id],tmpwt);
+			hmatrix_um[1][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
+		      
+			hgen_um_f[1][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
+			hrec_um_f[1][iCent]->Fill(jtpt[pfj.id],tmpwt);
+			hmatrix_um_f[1][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
+			hresp  [1][iCent]->Fill(jtpt[pfj.id], pfrefpt[pfj.id], tmpwt);
+			hresp_um[1][iCent]->Fill(jtpt[pfj.id], pfrefpt[pfj.id], tmpwt);		    
+			hresp_f  [1][iCent]->Fill(jtpt[pfj.id], pfrefpt[pfj.id], tmpwt);
+			hresp_um_f[1][iCent]->Fill(jtpt[pfj.id], pfrefpt[pfj.id], tmpwt);		    
+		      }
+		    }else{
+		      hresp   [0][iCent]->Miss(pfrefpt[pfj.id], tmpwt);
+		      hresp_um[0][iCent]->Miss(pfrefpt[pfj.id], tmpwt);		    		    
+		      hresp_f   [0][iCent]->Miss(pfrefpt[pfj.id], tmpwt);
+		      hresp_um_f[0][iCent]->Miss(pfrefpt[pfj.id], tmpwt);		    		    
+		      if( wJetId ){
+			hresp   [1][iCent]->Miss(pfrefpt[pfj.id], tmpwt);
+			hresp_um[1][iCent]->Miss(pfrefpt[pfj.id], tmpwt);		    
+			hresp_f   [1][iCent]->Miss(pfrefpt[pfj.id], tmpwt);
+			hresp_um_f[1][iCent]->Miss(pfrefpt[pfj.id], tmpwt);		    
+		      }
+		    }
+		  }
+		}
+	      }else{
+		if( pfrefpt[pfj.id] < 2.5*pthat) {
+		  if( sid[pfj.id] == 0 ){ 
+		    if( fabs(pfrefdrjt[pfj.id]) < kdelrcut ){ 
+		      hmatrix_c[0][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
+		      hmatrix_c_f[0][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
+		      hmatrix_um_c[0][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
+		      hmatrix_um_c_f[0][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
+
+		      hgen_c[0][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
+		      hgen_c_f[0][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
+		      hgen_um_c[0][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
+		      hgen_um_c_f[0][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
+		    
+		      hrec_c[0][iCent]->Fill(jtpt[pfj.id],tmpwt);
+		      hrec_c_f[0][iCent]->Fill(jtpt[pfj.id],tmpwt);
+		      hrec_um_c[0][iCent]->Fill(jtpt[pfj.id],tmpwt);
+		      hrec_um_c_f[0][iCent]->Fill(jtpt[pfj.id],tmpwt);
+		      if( wJetId ){
+			hmatrix_c[1][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
+			hmatrix_c_f[1][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
+			hmatrix_um_c[1][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
+			hmatrix_um_c_f[1][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
+			
+			hgen_c[1][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
+			hgen_c_f[1][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
+			hgen_um_c[1][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
+			hgen_um_c_f[1][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
+			hrec_c[1][iCent]->Fill(jtpt[pfj.id],tmpwt);
+			hrec_c_f[1][iCent]->Fill(jtpt[pfj.id],tmpwt);
+			hrec_um_c[1][iCent]->Fill(jtpt[pfj.id],tmpwt);
+			hrec_um_c_f[1][iCent]->Fill(jtpt[pfj.id],tmpwt);
+		      }
+		    }
+		  }
+		}
+	      }
+	    }
+	    if(printDebug)std::cout <<"\t %%% UnMatched PF" << " id  : " << pfj.id << " pfpt :  " << pfj.pt << " subid : " << sid[pfj.id] << " dr : " << pfrefdrjt[pfj.id] << std::endl;
+	  
+	    unmatchedPFJets++;	  	  
+	    pfid  [pfj.id] = 1;	  
+	  }
+      
+	  if( caloid[clj.id] == 0 ){//! Unmatched Calo jet
+
+	    if(printDebug)std::cout <<"\t XXX UnMatched Calo" << " id : " << clj.id  << " calopt : " << clj.pt << " subid : " << sid_calo [clj.id] << " dr : " << refdrjt_calo[clj.id] << std::endl;
+	
+	    unmatchedCaloJets++;	  	  
+	    caloid[clj.id] = 1;	  
+	  }
+	}
+      }//! bothPFCalo
+    
       if(printDebug){
-	std::cout <<" XXXXXXXXXXX  No Calo and PF jets passed the cuts " << std::endl;
+	std::cout << std::endl;
+	if( bothPFCalo    )std::cout<<" ****** Both PFCalo Event # " <<i;/*<<" vz  : "<<vz<<" hiBin : "<<hiBin;*/
+	else if( onlyCalo )std::cout<<" ****** Only Calo   Event # " <<i;/*<<" vz  : "<<vz<<" hiBin : "<<hiBin;*/
+	else if( onlyPF   )std::cout<<" ****** Only PF     Event # " <<i;/*<<" vz  : "<<vz<<" hiBin : "<<hiBin;*/
+	std::cout << " " 
+		  <<" All ==> PF : " << nref <<", CALO : "<< nref_calo << ";"  
+		  <<" After cut ==> PF : " << pfjets << ", Calo : "  << calojets << ";"
+		  <<" mCALOPF : "<< matchedJets <<", unmPF : "<<  unmatchedPFJets <<", unmCalo : "<<  unmatchedCaloJets 
+		  <<std::endl;
 	std::cout << "------------------------------------End Event # " << i <<"------------------------------------------------------------------ " << "\n"<<std::endl;
       }
-      hEvents_nopfcalo->Fill(rndm);
-      //continue;
+    }//! event loop ends
+  }//! kFiles
+
+
+  for(int i=0; i<2; i++){
+    for(int ic=mincen; ic<maxcen; ic++){
+      unf_bayes = new RooUnfoldBayes(hresp[i][ic], hrec[i][ic], iterations);
+      hunf[i][ic] = (TH1F*)unf_bayes->Hreco();
+      hunf[i][ic]->SetName(Form("hunf_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(),i,ic));
+      hcov[i][ic] = CorrelationHist(unf_bayes->Ereco((RooUnfold::ErrorTreatment)2), Form("hcov_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(),i,ic),
+				    "Unfolded covariance matrix",hrec[i][ic]->GetNbinsX(), hrec[i][ic]->GetXaxis()->GetXbins()->GetArray());
+      unf_bayes = new RooUnfoldBayes(hresp_m[i][ic], hrec_m[i][ic], iterations);
+      hunf_m[i][ic] = (TH1F*)unf_bayes->Hreco();
+      hunf_m[i][ic]->SetName(Form("hunf_m_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(),i,ic));
+      hcov_m[i][ic] = CorrelationHist(unf_bayes->Ereco((RooUnfold::ErrorTreatment)2), Form("hcov_m_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(),i,ic),
+				      "matched Unfolded covariance matrix",hrec_m[i][ic]->GetNbinsX(), hrec_m[i][ic]->GetXaxis()->GetXbins()->GetArray());
+      unf_bayes = new RooUnfoldBayes(hresp_um[i][ic], hrec_um[i][ic], iterations);
+      hunf_um[i][ic] = (TH1F*)unf_bayes->Hreco();
+      hunf_um[i][ic]->SetName(Form("hunf_um_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(),i,ic));
+      hcov_um[i][ic] = CorrelationHist(unf_bayes->Ereco((RooUnfold::ErrorTreatment)2), Form("hcov_um_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(),i,ic),
+				      "un matched Unfolded covariance matrix",hrec_um[i][ic]->GetNbinsX(), hrec_um[i][ic]->GetXaxis()->GetXbins()->GetArray());
+      
+
+      //! Now check the unfolding on the rest of the data
+      unf_bayes = new RooUnfoldBayes(hresp[i][ic], hrec_c[i][ic], iterations);
+      hunf_c[i][ic] = (TH1F*)unf_bayes->Hreco();
+      hunf_c[i][ic]->SetName(Form("hunf_c_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(),i,ic));
+      unf_bayes = new RooUnfoldBayes(hresp_m[i][ic], hrec_m_c[i][ic], iterations);
+      hunf_m_c[i][ic] = (TH1F*)unf_bayes->Hreco();
+      hunf_m_c[i][ic]->SetName(Form("hunf_m_c_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(),i,ic));
+      unf_bayes = new RooUnfoldBayes(hresp_um[i][ic], hrec_um_c[i][ic], iterations);
+      hunf_um_c[i][ic] = (TH1F*)unf_bayes->Hreco();
+      hunf_um_c[i][ic]->SetName(Form("hunf_um_c_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(),i,ic));
+
+
+      hresponse[i][ic] = (TH2F*)hresp[i][ic]->HresponseNoOverflow();
+      hresponse[i][ic]->SetName(Form("hresponse_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(),i,ic));
+      hresponse_m[i][ic] = (TH2F*)hresp_m[i][ic]->HresponseNoOverflow();
+      hresponse_m[i][ic]->SetName(Form("hresponse_m_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(),i,ic));
+      hresponse_um[i][ic] = (TH2F*)hresp_um[i][ic]->HresponseNoOverflow();
+      hresponse_um[i][ic]->SetName(Form("hresponse_um_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(),i,ic));
+
+      //! finer bins in pT
+      unf_bayes = new RooUnfoldBayes(hresp_f[i][ic], hrec_f[i][ic], iterations);
+      hunf_f[i][ic] = (TH1F*)unf_bayes->Hreco();
+      hunf_f[i][ic]->SetName(Form("hunf_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(),i,ic));
+      hcov_f[i][ic] = CorrelationHist(unf_bayes->Ereco((RooUnfold::ErrorTreatment)2), Form("hcov_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(),i,ic),
+				    "Unfolded covariance matrix",hrec_f[i][ic]->GetNbinsX(), hrec_f[i][ic]->GetXaxis()->GetXbins()->GetArray());
+      unf_bayes = new RooUnfoldBayes(hresp_m_f[i][ic], hrec_m_f[i][ic], iterations);
+      hunf_m_f[i][ic] = (TH1F*)unf_bayes->Hreco();
+      hunf_m_f[i][ic]->SetName(Form("hunf_m_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(),i,ic));
+      hcov_m_f[i][ic] = CorrelationHist(unf_bayes->Ereco((RooUnfold::ErrorTreatment)2), Form("hcov_m_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(),i,ic),
+				    "matched Unfolded covariance matrix",hrec_m_f[i][ic]->GetNbinsX(), hrec_m_f[i][ic]->GetXaxis()->GetXbins()->GetArray());
+      unf_bayes = new RooUnfoldBayes(hresp_um_f[i][ic], hrec_um_f[i][ic], iterations);
+      hunf_um_f[i][ic] = (TH1F*)unf_bayes->Hreco();
+      hunf_um_f[i][ic]->SetName(Form("hunf_um_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(),i,ic));
+      hcov_um_f[i][ic] = CorrelationHist(unf_bayes->Ereco((RooUnfold::ErrorTreatment)2), Form("hcov_um_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(),i,ic),
+				    "un matched Unfolded covariance matrix",hrec_um_f[i][ic]->GetNbinsX(), hrec_um_f[i][ic]->GetXaxis()->GetXbins()->GetArray());
+
+      //! Now check the unfolding on the rest of the data
+      unf_bayes = new RooUnfoldBayes(hresp_f[i][ic], hrec_c_f[i][ic], iterations);
+      hunf_c_f[i][ic] = (TH1F*)unf_bayes->Hreco();
+      hunf_c_f[i][ic]->SetName(Form("hunf_c_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(),i,ic));
+      unf_bayes = new RooUnfoldBayes(hresp_m_f[i][ic], hrec_m_c_f[i][ic], iterations);
+      hunf_m_c_f[i][ic] = (TH1F*)unf_bayes->Hreco();
+      hunf_m_c_f[i][ic]->SetName(Form("hunf_m_c_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(),i,ic));
+      unf_bayes = new RooUnfoldBayes(hresp_um_f[i][ic], hrec_um_c_f[i][ic], iterations);
+      hunf_um_c_f[i][ic] = (TH1F*)unf_bayes->Hreco();
+      hunf_um_c_f[i][ic]->SetName(Form("hunf_um_c_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(),i,ic));
+
+
+      hresponse_f[i][ic] = (TH2F*)hresp_f[i][ic]->HresponseNoOverflow();
+      hresponse_f[i][ic]->SetName(Form("hresponse_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(),i,ic));
+      hresponse_m_f[i][ic] = (TH2F*)hresp_m_f[i][ic]->HresponseNoOverflow();
+      hresponse_m_f[i][ic]->SetName(Form("hresponse_m_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(),i,ic));
+      hresponse_um_f[i][ic] = (TH2F*)hresp_um_f[i][ic]->HresponseNoOverflow();
+      hresponse_um_f[i][ic]->SetName(Form("hresponse_um_f_%s_%s_%d_%d",kSpecies.c_str(), kAlgName.c_str(),i,ic));
+
     }
-
-    bool onlyCalo   = (pfjets==0 && calojets >0) ? true : false;
-    bool onlyPF     = (pfjets>0  && calojets==0) ? true : false;
-    bool bothPFCalo = (pfjets>0  && calojets >0) ? true : false;
-
-    int matchedJets=0;
-    int unmatchedPFJets=0;
-    int unmatchedCaloJets=0;
-
-    double tmpwt = 1.;
-    if( kDataset == "mc" ){
-      double wvz  = fVz->Eval(vz);
-      double wcen = hCentWeight->GetBinContent(hCentWeight->FindBin(hiBin));
-      if ( kSpecies == "pbpb" )tmpwt = (wxs*wvz*wcen);
-      else tmpwt = wxs;
-    }else tmpwt = 1.;
-
-    if(printDebug)std::cout <<" Total ==>  # of PF jets : " << pfjets << ", # of calojets : "  << calojets <<"\n"<<std::endl;
-
-    std::vector < Jet >::const_iterator iJet, jJet;
-
-    if( onlyPF ){
-      
-      for(iJet = vPFJets.begin(); iJet != vPFJets.end(); ++iJet){ //! PFjet
-
-	int pj = (*iJet).id; 
-
-	if( sid[pj] != 0)continue;
-	if( fabs(pfrefdrjt[pj]) > kdelrcut )continue;
-
-	Float_t Sumcand = chargedSum[pj] + neutralSum[pj] + photonSum[pj] + muonSum[pj];
-	bool wJetId  = (eleMax[pj]/Sumcand < 0.05);
-
-	if( kSpecies == "pp" && kDataset=="mc" )wJetId=true;
-
-	if( trigFill ) {
-	  if( iFill ){
-	    //! w/o jet id
-	    hgen[0][iCent]->Fill(pfrefpt[pj],tmpwt);
-	    hrec[0][iCent]->Fill(jtpt[pj],tmpwt);
-	    hmatrix[0][iCent]->Fill(pfrefpt[pj],jtpt[pj],tmpwt);
-	    
-	    hgen_f[0][iCent]->Fill(pfrefpt[pj],tmpwt);
-	    hrec_f[0][iCent]->Fill(jtpt[pj],tmpwt);
-	    hmatrix_f[0][iCent]->Fill(pfrefpt[pj],jtpt[pj],tmpwt);
-	    
-	    hgen_um[0][iCent]->Fill(pfrefpt[pj],tmpwt);
-	    hrec_um[0][iCent]->Fill(jtpt[pj],tmpwt);
-	    hmatrix_um[0][iCent]->Fill(pfrefpt[pj],jtpt[pj],tmpwt);
-	    
-	    hgen_um_f[0][iCent]->Fill(pfrefpt[pj],tmpwt);
-	    hrec_um_f[0][iCent]->Fill(jtpt[pj],tmpwt);
-	    hmatrix_um_f[0][iCent]->Fill(pfrefpt[pj],jtpt[pj],tmpwt);
-	    
-
-	    if( wJetId ){
-	      hgen[1][iCent]->Fill(pfrefpt[pj],tmpwt);
-	      hrec[1][iCent]->Fill(jtpt[pj],tmpwt);
-	      hmatrix[1][iCent]->Fill(pfrefpt[pj],jtpt[pj],tmpwt);
-	      
-	      hgen_f[1][iCent]->Fill(pfrefpt[pj],tmpwt);
-	      hrec_f[1][iCent]->Fill(jtpt[pj],tmpwt);
-	      hmatrix_f[1][iCent]->Fill(pfrefpt[pj],jtpt[pj],tmpwt);
-	      
-	      hgen_um[1][iCent]->Fill(pfrefpt[pj],tmpwt);
-	      hrec_um[1][iCent]->Fill(jtpt[pj],tmpwt);
-	      hmatrix_um[1][iCent]->Fill(pfrefpt[pj],jtpt[pj],tmpwt);
-	      
-	      hgen_um_f[1][iCent]->Fill(pfrefpt[pj],tmpwt);
-	      hrec_um_f[1][iCent]->Fill(jtpt[pj],tmpwt);
-	      hmatrix_um_f[1][iCent]->Fill(pfrefpt[pj],jtpt[pj],tmpwt);
-	    }
-	  }else{
-	    hrec_c[0][iCent]->Fill(jtpt[pj],tmpwt);
-	    hrec_um_c[0][iCent]->Fill(jtpt[pj],tmpwt);
-	    hrec_um_c_f[0][iCent]->Fill(jtpt[pj],tmpwt);
-	    if( wJetId ){
-	      hrec_c[1][iCent]->Fill(jtpt[pj],tmpwt);
-	      hrec_um_c[1][iCent]->Fill(jtpt[pj],tmpwt);
-	      hrec_um_c_f[1][iCent]->Fill(jtpt[pj],tmpwt);
-	    }
-	  }
-	}
-	 	
-	if(printDebug)std::cout <<" unmatched PF jets w ncalo=0 : " << unmatchedPFJets << "  pt : " << jtpt[pj] << " eta : "  << jteta[pj] << " phi : " << jtphi[pj] << " dr : " << pfrefdrjt[pj] <<std::endl;
-    	unmatchedPFJets++;
-      }
-    }
-    else if( onlyCalo ){
-      for(iJet = vCaloJets.begin(); iJet != vCaloJets.end(); ++iJet){ //! Calojet
-	
-    	int cj = (*iJet).id; 	
-	
-    	if(printDebug)std::cout <<" unmatched CALO jets w npf=0 : " << unmatchedCaloJets << "  pt : " << jtpt_calo[cj] << " eta : "  << jteta_calo[cj] << " phi : " << jtphi_calo[cj] << " dr : " << refdrjt_calo[cj] << std::endl;
-    	unmatchedCaloJets++;
-      }
-    }
-    else if( bothPFCalo ){
-
-      CaloPFMatchedJets mCaloPFMatchedJets;
-      for(iJet = vCaloJets.begin(); iJet != vCaloJets.end(); ++iJet){ //! Calojet      
-	
-	for(jJet = vPFJets.begin(); jJet != vPFJets.end(); ++jJet){ //! PFjet
-	  
-	  mCaloPFMatchedJets.insert(std::make_pair(*iJet,*jJet));
-	  
-	}//! calo jet loop
-      }//! PF jet loop
-      
-      CPFItr itr;
-      //! Matched jets (PF jet matched to Calo jet)
-      for(itr = mCaloPFMatchedJets.begin(); itr != mCaloPFMatchedJets.end(); ++itr){
-
-	CaloPFJetPair jetpair = (*itr);
-	Jet clj = jetpair.first;
-	Jet pfj = jetpair.second;
-
-	float delr  = deltaR(clj.eta, clj.phi, pfj.eta, pfj.phi);
-	//float delpt = fabs(clj.pt - pfj.pt);
-	if( delr < kdelrmatch && caloid[clj.id]==0 ){
-	  
-	  Float_t Sumcand = chargedSum[pfj.id] + neutralSum[pfj.id] + photonSum[pfj.id] + muonSum[pfj.id];
-	  Float_t ePFSel  = (18./7.*jtpt_calo[clj.id]/jtpt[pfj.id]) - 9./7.;
-	  bool wJetId     = (jtpt_calo[clj.id]/jtpt[pfj.id]  > 0.50) && (jtpt_calo[clj.id]/jtpt[pfj.id] <= 0.85) && (eleMax[pfj.id]/Sumcand < ePFSel);
-
-	  if( kSpecies == "pp" && kDataset=="mc" )wJetId=true;
-	  
-	  if( trigFill ) {
-	    if( sid[pfj.id] == 0 && fabs(pfrefdrjt[pfj.id]) < kdelrcut ) {
-	      if( iFill ){
-		//! w/o jet id
-		hgen[0][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
-		hrec[0][iCent]->Fill(jtpt[pfj.id],tmpwt);
-		hmatrix[0][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
-	      
-		hgen_f[0][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
-		hrec_f[0][iCent]->Fill(jtpt[pfj.id],tmpwt);
-		hmatrix_f[0][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
-		
-		hgen_m[0][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
-		hrec_m[0][iCent]->Fill(jtpt[pfj.id],tmpwt);
-		hmatrix_m[0][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
-		
-		hgen_m_f[0][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
-		hrec_m_f[0][iCent]->Fill(jtpt[pfj.id],tmpwt);
-		hmatrix_m_f[0][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
-		
-		if( wJetId ){
-		  hgen[1][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
-		  hrec[1][iCent]->Fill(jtpt[pfj.id],tmpwt);
-		  hmatrix[1][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
-		  
-		  hgen_f[1][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
-		  hrec_f[1][iCent]->Fill(jtpt[pfj.id],tmpwt);
-		  hmatrix_f[1][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
-		  
-		  hgen_m[1][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
-		  hrec_m[1][iCent]->Fill(jtpt[pfj.id],tmpwt);
-		  hmatrix_um[1][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
-		  
-		  hgen_m_f[1][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
-		  hrec_m_f[1][iCent]->Fill(jtpt[pfj.id],tmpwt);
-		  hmatrix_m_f[1][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
-		}
-	      }else{
-		hrec_c[0][iCent]->Fill(jtpt[pfj.id],tmpwt);
-		hrec_m_c[0][iCent]->Fill(jtpt[pfj.id],tmpwt);
-		hrec_m_c_f[0][iCent]->Fill(jtpt[pfj.id],tmpwt);
-		if( wJetId ){
-		  hrec_c[1][iCent]->Fill(jtpt[pfj.id],tmpwt);
-		  hrec_m_c[1][iCent]->Fill(jtpt[pfj.id],tmpwt);
-		  hrec_m_c_f[1][iCent]->Fill(jtpt[pfj.id],tmpwt);
-		}
-	      }
-	    }
-	  }
-	
-	  if(printDebug)std::cout <<"\t *** Matched" << " id : " << pfj.id << " " << clj.id << " pfpt :  " << pfj.pt << " calopt : " << clj.pt << " spf : " << sid[pfj.id] << " scj : " << sid [clj.id] << " dr : " << pfrefdrjt[pfj.id] << std::endl;
-	  //if( sid[pfj.id]!=0 && pfpt>20 )std::cout <<"\t *** Matched" << " pthat : " << pthat << " refpt : " << refpt << " pfpt :  " << pfj.pt << " calopt : " << clj.pt << " spf : " << sid[pfj.id] << " scj : " << sid [clj.id] << std::endl;	  
-	  
-	  matchedJets++;	  
-	  pfid  [pfj.id] = 1;
-	  caloid[clj.id] = 1;
-	}
-      }
-      
-      // //! Unmatched jets
-      for(itr = mCaloPFMatchedJets.begin(); itr != mCaloPFMatchedJets.end(); ++itr){
-	CaloPFJetPair jetpair = (*itr);
-
-	Jet clj = jetpair.first;
-	Jet pfj = jetpair.second;
-
-	//float delr  = deltaR(pfj.eta, pfj.phi, clj.eta, clj.phi);
-	//float delpt = fabs(pfj.pt - clj.pt);
-	//if( pfid[pfj.id]==1 || caloid[clj.id]==1 )continue;
-      
-	if( pfid[pfj.id] == 0 ){//! Unmatched PF jet
-
-	  Float_t Sumcand = chargedSum[pfj.id] + neutralSum[pfj.id] + photonSum[pfj.id] + muonSum[pfj.id];
-	  bool wJetId  = (eleMax[pfj.id]/Sumcand < 0.05);
-	  
-	  if( trigFill ) {
-	    if( sid[pfj.id] == 0  && fabs(pfrefdrjt[pfj.id]) < kdelrcut ){
-	      if( iFill ){
-		//! w/o jet id
-		hgen[0][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
-		hrec[0][iCent]->Fill(jtpt[pfj.id],tmpwt);
-		hmatrix[0][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
-		
-		hgen_f[0][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
-		hrec_f[0][iCent]->Fill(jtpt[pfj.id],tmpwt);
-		hmatrix_f[0][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
-		
-		hgen_um[0][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
-		hrec_um[0][iCent]->Fill(jtpt[pfj.id],tmpwt);
-		hmatrix_um[0][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
-		
-		hgen_um_f[0][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
-		hrec_um_f[0][iCent]->Fill(jtpt[pfj.id],tmpwt);
-		hmatrix_um_f[0][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
-		
-		
-		if( wJetId ){
-		  hgen[1][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
-		  hrec[1][iCent]->Fill(jtpt[pfj.id],tmpwt);
-		  hmatrix[1][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
-		  
-		  hgen_f[1][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
-		  hrec_f[1][iCent]->Fill(jtpt[pfj.id],tmpwt);
-		  hmatrix_f[1][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
-		  
-		  hgen_um[1][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
-		  hrec_um[1][iCent]->Fill(jtpt[pfj.id],tmpwt);
-		  hmatrix_um[1][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
-		  
-		  hgen_um_f[1][iCent]->Fill(pfrefpt[pfj.id],tmpwt);
-		  hrec_um_f[1][iCent]->Fill(jtpt[pfj.id],tmpwt);
-		  hmatrix_um_f[1][iCent]->Fill(pfrefpt[pfj.id],jtpt[pfj.id],tmpwt);
-		}
-	      }else{
-		hrec_c[0][iCent]->Fill(jtpt[pfj.id],tmpwt);
-		hrec_um_c[0][iCent]->Fill(jtpt[pfj.id],tmpwt);
-		hrec_um_c_f[0][iCent]->Fill(jtpt[pfj.id],tmpwt);
-		if( wJetId ){
-		  hrec_c[1][iCent]->Fill(jtpt[pfj.id],tmpwt);
-		  hrec_um_c[1][iCent]->Fill(jtpt[pfj.id],tmpwt);
-		  hrec_um_c_f[1][iCent]->Fill(jtpt[pfj.id],tmpwt);
-		}
-	      }
-	    }
-	  }
-	  if(printDebug)std::cout <<"\t %%% UnMatched PF" << " id  : " << pfj.id << " pfpt :  " << pfj.pt << " subid : " << sid[pfj.id] << " dr : " << pfrefdrjt[pfj.id] << std::endl;
-	  
-	  unmatchedPFJets++;	  	  
-	  pfid  [pfj.id] = 1;	  
-	}
-      
-	if( caloid[clj.id] == 0 ){//! Unmatched Calo jet
-
-	  if(printDebug)std::cout <<"\t XXX UnMatched Calo" << " id : " << clj.id  << " calopt : " << clj.pt << " subid : " << sid_calo [clj.id] << " dr : " << refdrjt_calo[clj.id] << std::endl;
-	
-	  unmatchedCaloJets++;	  	  
-	  caloid[clj.id] = 1;	  
-	}
-      }
-    }//! bothPFCalo
-
-    if(printDebug){
-      std::cout << std::endl;
-      if( bothPFCalo    )std::cout<<" ****** Both PFCalo Event # " <<i;/*<<" vz  : "<<vz<<" hiBin : "<<hiBin;*/
-      else if( onlyCalo )std::cout<<" ****** Only Calo   Event # " <<i;/*<<" vz  : "<<vz<<" hiBin : "<<hiBin;*/
-      else if( onlyPF   )std::cout<<" ****** Only PF     Event # " <<i;/*<<" vz  : "<<vz<<" hiBin : "<<hiBin;*/
-      std::cout << " " 
-		<<" All ==> PF : " << nref <<", CALO : "<< nref_calo << ";"  
-		<<" After cut ==> PF : " << pfjets << ", Calo : "  << calojets << ";"
-		<<" mCALOPF : "<< matchedJets <<", unmPF : "<<  unmatchedPFJets <<", unmCalo : "<<  unmatchedCaloJets 
-		<<std::endl;
-      std::cout << "------------------------------------End Event # " << i <<"------------------------------------------------------------------ " << "\n"<<std::endl;
-    }
-  }//! event loop ends
+  }
 
   //! Write to output file
-  fout->cd();
-  fout->Write();
+  fout->mkdir(Form("%sJetAnalyzer",kAlgName.c_str()));
+  fout->cd(Form("%sJetAnalyzer", kAlgName.c_str()));
+  for(int i=0; i<2; i++){
+    for(int ic=mincen; ic<maxcen; ic++){
+      hmatrix[i][ic]->Write(); 
+      hmatrix_m[i][ic]->Write();
+      hmatrix_um[i][ic]->Write();
+      hgen[i][ic]->Write();
+      hgen_m[i][ic]->Write();
+      hgen_um[i][ic]->Write();
+      hrec[i][ic]->Write();
+      hrec_m[i][ic]->Write();
+      hrec_um[i][ic]->Write();
+
+      hmatrix_c[i][ic]->Write(); 
+      hmatrix_m_c[i][ic]->Write();
+      hmatrix_um_c[i][ic]->Write();
+      hgen_c[i][ic]->Write();
+      hgen_m_c[i][ic]->Write();
+      hgen_um_c[i][ic]->Write();
+      hrec_c[i][ic]->Write();
+      hrec_m_c[i][ic]->Write();
+      hrec_um_c[i][ic]->Write();
+
+      hcov[i][ic]->Write();
+      hcov_m[i][ic]->Write();
+      hcov_um[i][ic]->Write();
+
+      hcov_f[i][ic]->Write();
+      hcov_m_f[i][ic]->Write();
+      hcov_um_f[i][ic]->Write();
+
+      hunf[i][ic]->Write();
+      hunf_m[i][ic]->Write();
+      hunf_um[i][ic]->Write();
+
+      hunf_c[i][ic]->Write();
+      hunf_m_c[i][ic]->Write();
+      hunf_um_c[i][ic]->Write();
+
+      hresponse[i][ic]->Write();
+      hresponse_m[i][ic]->Write();
+      hresponse_um[i][ic]->Write();
+
+      hresp[i][ic]->Write();
+      hresp_m[i][ic]->Write();
+      hresp_um[i][ic]->Write();
+
+      hmatrix_f[i][ic]->Write(); 
+      hmatrix_m_f[i][ic]->Write();
+      hmatrix_um_f[i][ic]->Write();
+      hgen_f[i][ic]->Write();
+      hgen_m_f[i][ic]->Write();
+      hgen_um_f[i][ic]->Write();
+      hrec_f[i][ic]->Write();
+      hrec_m_f[i][ic]->Write();
+      hrec_um_f[i][ic]->Write();
+
+      hmatrix_c_f[i][ic]->Write(); 
+      hmatrix_m_c_f[i][ic]->Write();
+      hmatrix_um_c_f[i][ic]->Write();
+      hgen_c_f[i][ic]->Write();
+      hgen_m_c_f[i][ic]->Write();
+      hgen_um_c_f[i][ic]->Write();
+      hrec_c_f[i][ic]->Write();
+      hrec_m_c_f[i][ic]->Write();
+      hrec_um_c_f[i][ic]->Write();
+      
+      hunf_f[i][ic]->Write();
+      hunf_m_f[i][ic]->Write();
+      hunf_um_f[i][ic]->Write();
+
+      hunf_c_f[i][ic]->Write();
+      hunf_m_c_f[i][ic]->Write();
+      hunf_um_c_f[i][ic]->Write();
+
+      hresponse_f[i][ic]->Write();
+      hresponse_m_f[i][ic]->Write();
+      hresponse_um_f[i][ic]->Write();
+
+      hresp_f[i][ic]->Write();
+      hresp_m_f[i][ic]->Write();
+      hresp_um_f[i][ic]->Write();
+    }
+  }
+  //fout->Write();
+  fout->cd("../");
   fout->Close();
 
-  
   //! Check
   timer.Stop();
   double rtime  = timer.RealTime();
@@ -1471,4 +1856,17 @@ void AddInputFiles(TChain *tch, string inputname, string inputTree)
     tch->Add(stree.c_str());
   }
   //  cout<<endl;
+}
+TH2F* CorrelationHist (const TMatrixD& cov, const char* name, const char* title,
+		       const unsigned nbins_rec, const Double_t* bins)
+{
+  Int_t nb= cov.GetNrows();
+  TH2F* h= new TH2F (name, title, nbins_rec, bins, nbins_rec, bins);
+  h->SetAxisRange (-1.0, 1.0, "Z");
+  for(int i=0; i < nb; i++)
+    for(int j=0; j < nb; j++) {
+      Float_t Viijj= cov(i,i)*cov(j,j);
+      if (Viijj>0.0) h->SetBinContent (i+1, j+1, cov(i,j)/sqrt(Viijj));
+    }
+  return h;
 }
