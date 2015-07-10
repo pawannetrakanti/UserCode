@@ -1,0 +1,780 @@
+
+// -*- C++ -*-
+//
+// Package:    HOinPFAlgo
+// Class:      HOinPFAlgo
+// 
+/**\class HOinPFAlgo HOinPFAlgo.cc Test/HOinPFAlgo/src/HOinPFAlgo.cc
+
+ Description: [one line class summary]
+
+ Implementation:
+     [Notes on implementation]
+*/
+//
+// Original Author:  Gobinda Majumder,22 1-031,+41227679681,
+//         Created:  Thu Dec  1 13:09:13 CET 2011
+// $Id$
+//
+//
+
+
+// system include files
+#include <memory>
+
+// user include files
+#include "FWCore/Framework/interface/Frameworkfwd.h"
+#include "FWCore/Framework/interface/EDAnalyzer.h"
+
+#include "FWCore/Framework/interface/Event.h"
+#include "FWCore/Framework/interface/MakerMacros.h"
+
+#include "FWCore/ParameterSet/interface/ParameterSet.h"
+#include "FWCore/ServiceRegistry/interface/Service.h"
+#include "CommonTools/UtilAlgos/interface/TFileService.h"
+#include "DataFormats/ParticleFlowCandidate/interface/PFCandidate.h"
+#include "DataFormats/JetReco/interface/PFJet.h"
+#include "DataFormats/JetReco/interface/CaloJet.h"
+#include "DataFormats/JetReco/interface/CaloJetCollection.h"
+#include "DataFormats/METReco/interface/PFMET.h"
+#include "DataFormats/METReco/interface/PFMETCollection.h"
+#include "DataFormats/METReco/interface/MET.h"
+#include "DataFormats/METReco/interface/CaloMET.h"
+#include "DataFormats/METReco/interface/METCollection.h"
+#include "DataFormats/METReco/interface/CaloMETCollection.h"
+
+#include "DataFormats/METReco/interface/GenMET.h"
+#include "DataFormats/METReco/interface/GenMETFwd.h"
+
+#include "DataFormats/JetReco/interface/GenJet.h"
+#include "DataFormats/JetReco/interface/GenJetCollection.h"
+#include "DataFormats/HepMCCandidate/interface/GenParticle.h"
+#include "DataFormats/HepMCCandidate/interface/GenParticleFwd.h"
+#include "DataFormats/HcalRecHit/interface/HcalRecHitCollections.h"
+#include "DataFormats/JetReco/interface/JetID.h"
+#include "TFile.h"
+#include "TH1F.h"
+#include "TH2F.h"
+#include "TTree.h"
+#include "CLHEP/Vector/LorentzVector.h"
+
+#include "DataFormats/EgammaCandidates/interface/GsfElectron.h"
+#include "DataFormats/EgammaCandidates/interface/GsfElectronFwd.h"
+#include "DataFormats/GsfTrackReco/interface/GsfTrack.h"
+#include "DataFormats/MuonReco/interface/Muon.h"
+#include "DataFormats/MuonReco/interface/MuonSelectors.h"
+#include "DataFormats/VertexReco/interface/Vertex.h"
+#include "DataFormats/VertexReco/interface/VertexFwd.h"
+
+#include <string>
+
+#include <iostream>
+#include <fstream>
+
+#include "DataFormats/EgammaCandidates/interface/Photon.h"
+#include "DataFormats/EgammaCandidates/interface/PhotonFwd.h"
+
+#include "DataFormats/HcalDigi/interface/HcalDigiCollections.h"
+#include "DataFormats/HcalDetId/interface/HcalDetId.h"
+#include "CalibFormats/HcalObjects/interface/HcalCoderDb.h"
+#include "CalibFormats/HcalObjects/interface/HcalCalibrations.h"
+//#include "CalibFormats/HcalObjects/interface/HcalCalibrationWidths.h"
+#include "CalibFormats/HcalObjects/interface/HcalDbService.h"
+#include "CalibFormats/HcalObjects/interface/HcalDbRecord.h"
+//#include "CondFormats/HcalObjects/interface/HcalQIECoder.h"
+//#include "CondFormats/HcalObjects/interface/HcalPedestal.h"
+//#include "CondFormats/HcalObjects/interface/HcalPedestalWidth.h"
+//#include "CondFormats/HcalObjects/interface/HcalElectronicsMap.h"
+#include "FWCore/Framework/interface/ESHandle.h"
+
+//#include "DataFormats/HcalCalibObjects/interface/HBHERecTime.h"
+//#include "DataFormats/HcalCalibObjects/interface/HBHERecTimeCollection.h"
+
+using namespace std;
+using namespace edm;
+using namespace reco;  
+using namespace CLHEP;
+
+const float mu_mass = 0.105658;
+const float el_mass = 0.000511;
+const float pival = acos(-1.);
+
+const int nhbetamx=60;
+const int nhbphimx=72;
+const int nhbdepthmx=4;
+
+const int netabin= 15;
+const int netamx = 30;
+const int nphimx = 72;
+const int nchnmx = 10;
+const int ncidmx = 5;
+int gethbieta(int ij) { return (ij<nhbetamx/2) ? -nhbetamx/2 + ij : -nhbetamx/2 + ij + 1;}
+int invert_hbieta(int ieta) { return (ieta<0) ? nhbetamx/2+ ieta : nhbetamx/2 +ieta - 1;}
+
+int getieta(int ij) { 
+  if (ij<netamx/2) { 
+    return  -netamx/2 + ij;
+  } else {
+    return  -netamx/2 + ij + 1;
+  }
+}
+int invert_ieta(int ieta) { 
+  if (ieta<0) {
+    return netamx/2 + ieta;
+  } else {
+    return netamx/2 + ieta - 1;
+  }
+}
+
+
+static const int njetmx = 500;
+
+static const int njtptbin =9;
+double jtptbins[njtptbin+1]={150., 200., 400., 600., 800., 1200., 1600., 2000., 2500., 5000.};
+//double jtptbins[njtptbin+1]={30., 70., 120., 200., 400., 700., 1200., 2500., 5000.};
+static const double etarng=3.0; //5.0;
+static const double mnphi=-2.35; // iphi=45
+static const double mxphi=-0.70; // iphi=64
+//For histogrammes of time profile 
+static const int nhbsigmx=8;
+//double hbsigmxs[nhbsigmx+1]={-100.0, 0.0, 5.0, 10.0, 30.0, 100.0, 300.0, 1000.0, 2000.0};
+double hbsigmxs[nhbsigmx+1]={0.2, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 300.0, 3000.0};
+
+static const int ntimemx=50;
+
+int getbinid(double val, int nbmx, double* array) {
+  if (val<array[0]) return -2;
+  for (int ix=0; ix<=nbmx; ix++) {
+    if (val < array[ix]) return ix;
+  }
+  return -3;
+}
+
+int isitorbitgap(int ibr) {
+  if (ibr>=3451 && ibr<= 3559) return 1;
+  if (ibr>=3441 && ibr<= 3564) return 0;
+  if (ibr<=5) return 0;
+  if (ibr>=0) return -1;
+
+  if (ibr>= 238 && ibr<=265) return 1; 
+  if (ibr>= 508 && ibr<=535) return 1; 
+  if (ibr>= 858 && ibr<=886) return 1; 
+  if (ibr>= 1129 && ibr<=1156) return 1; 
+  if (ibr>= 1399 && ibr<=1426) return 1; 
+  if (ibr>= 1749 && ibr<=1777) return 1; 
+  if (ibr>= 2020 && ibr<=2047) return 1; 
+  if (ibr>= 2290 && ibr<=2317) return 1; 
+  if (ibr>= 2640 && ibr<=2668) return 1; 
+  if (ibr>= 2911 && ibr<=2938) return 1; 
+  if (ibr>= 3181 && ibr<=3208) return 1; 
+  if (ibr>= 3451 && ibr<=3559) return 1; 
+
+  if (ibr>= 68 && ibr<=85) return 0; 
+  if (ibr>= 148 && ibr<=165) return 0; 
+  if (ibr>= 228 && ibr<=275) return 0; 
+  if (ibr>= 338 && ibr<=355) return 0; 
+  if (ibr>= 418 && ibr<=435) return 0; 
+  if (ibr>= 498 && ibr<=545) return 0; 
+  if (ibr>= 608 && ibr<=625) return 0; 
+  if (ibr>= 688 && ibr<=705) return 0; 
+  if (ibr>= 768 && ibr<=785) return 0; 
+  if (ibr>= 848 && ibr<=896) return 0; 
+  if (ibr>= 959 && ibr<=976) return 0; 
+  if (ibr>= 1039 && ibr<=1056) return 0; 
+  if (ibr>= 1119 && ibr<=1166) return 0; 
+  if (ibr>= 1229 && ibr<=1246) return 0; 
+  if (ibr>= 1309 && ibr<=1326) return 0; 
+  if (ibr>= 1389 && ibr<=1436) return 0; 
+  if (ibr>= 1499 && ibr<=1516) return 0; 
+  if (ibr>= 1579 && ibr<=1596) return 0; 
+  if (ibr>= 1659 && ibr<=1676) return 0; 
+  if (ibr>= 1739 && ibr<=1787) return 0; 
+  if (ibr>= 1850 && ibr<=1867) return 0; 
+  if (ibr>= 1930 && ibr<=1947) return 0; 
+  if (ibr>= 2010 && ibr<=2057) return 0; 
+  if (ibr>= 2120 && ibr<=2137) return 0; 
+  if (ibr>= 2200 && ibr<=2217) return 0; 
+  if (ibr>= 2280 && ibr<=2327) return 0; 
+  if (ibr>= 2390 && ibr<=2407) return 0; 
+  if (ibr>= 2470 && ibr<=2487) return 0; 
+  if (ibr>= 2550 && ibr<=2567) return 0; 
+  if (ibr>= 2630 && ibr<=2678) return 0; 
+  if (ibr>= 2741 && ibr<=2758) return 0; 
+  if (ibr>= 2821 && ibr<=2838) return 0; 
+  if (ibr>= 2901 && ibr<=2948) return 0; 
+  if (ibr>= 3011 && ibr<=3028) return 0; 
+  if (ibr>= 3091 && ibr<=3108) return 0; 
+  if (ibr>= 3171 && ibr<=3218) return 0; 
+  if (ibr>= 3281 && ibr<=3298) return 0; 
+  if (ibr>= 3361 && ibr<=3378) return 0; 
+  if (ibr>= 3441 && ibr<=3569) return 0; 
+
+  return -1;
+}
+double theta_to_eta(double theta) { return -log(tan(theta/2.)); }
+
+static const int nsetmx=21;
+static const int iTagMx=21;
+
+static const int netajtbin=4;
+double etajtbins[netajtbin]={0.36, 0.90, 2.0, 3.0};
+//static const int nlepton=3;
+//const char* namelep[nlepton]={"mu-tag", "ele-tag", "others"};
+static const int nlepton=2;
+const char* namelep[nlepton]={"mu-tag", "others"};
+static const int nmettype=3;
+const char* metname[nmettype]={"Calo", "tc", "pf"};
+static const int norbitgap=3;
+
+const int nlogmisptbin=60;
+double logmisptbins[nlogmisptbin+1]={0.0, 2.0, 4.1, 6.2, 8.3, 10.4, 12.5, 14.6, 16.7, 18.8, 20.9, 23.0, 25.1304, 27.2363, 29.4022, 31.641, 34.1665, 36.8935, 39.8382, 43.018, 46.4515, 50.1591, 54.1627, 58.4857, 63.1539, 68.1946, 73.6377, 79.5152, 85.8618, 92.715, 100.115, 108.106, 116.735, 126.052, 136.113, 146.977, 158.708, 171.376, 185.055, 199.825, 215.774, 232.997, 251.594, 271.675, 293.359, 316.774, 342.058, 369.36, 398.841, 430.675, 465.05, 502.169, 542.251, 585.531, 632.266, 682.732, 737.225, 796.068, 859.607, 928.218, 1002.31};
+
+const int nlogpsig2=60;
+double logpsig2s[nlogpsig2+1]={0.0, 0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.10, 0.114815, 0.134896, 0.158489, 0.186209, 0.218776, 0.25704, 0.301995, 0.354813, 0.416869, 0.489779, 0.57544, 0.676083, 0.794328, 0.933254, 1.09648, 1.28825, 1.51356, 1.77828, 2.0893, 2.45471, 2.88403, 3.38844, 3.98107, 4.67735, 5.49541, 6.45654, 7.58578, 8.91251, 10.4713, 12.3027, 14.4544, 16.9824, 19.9526, 23.4423, 27.5423, 32.3594, 38.0189, 44.6684, 52.4807, 61.6595, 72.4436, 85.1138, 100, 117.49, 138.038, 162.181, 190.546, 223.872, 263.027, 309.03};
+
+double logpsig2jt[nlogpsig2+1]={2.99916, 3.36512, 3.77572, 4.23643, 4.75335, 5.33335, 5.98412, 6.71429, 7.53356, 8.45279, 9.48418, 10.6414, 11.9399, 13.3968, 15.0314, 16.8655, 18.9234, 21.2324, 23.8232, 26.7301, 29.9916, 33.6512, 37.7572, 42.3643, 47.5335, 53.3335, 59.8412, 67.1429, 75.3356, 84.5279, 94.8418, 106.414, 119.399, 133.968, 150.314, 168.655, 189.234, 212.324, 238.232, 267.301, 299.916, 336.512, 377.572, 423.643, 475.335, 533.335, 598.412, 671.429, 753.356, 845.279, 948.418, 1064.14, 1193.99, 1339.68, 1503.14, 1686.55, 1892.34, 2123.24, 2382.32, 2673.01, 2999.16};
+
+const int nlogpsig2ss=80;
+double logpsig2ss[nlogpsig2ss+1]={0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.10154, 1.21339, 1.3366, 1.47231, 1.62181, 1.78649, 1.96789, 2.1677, 2.38781, 2.63027, 2.89734, 3.19154, 3.5156, 3.87258, 4.2658, 4.69894, 5.17607, 5.70164, 6.28058, 6.91831, 7.62079, 8.3946, 9.24698, 10.1859, 11.2202, 12.3595, 13.6144, 14.9968, 16.5196, 18.197, 20.0447, 22.08, 24.322, 26.7917, 29.5121, 32.5087, 35.8096, 39.4457, 43.451, 47.863, 52.723, 58.0764, 63.9735, 70.4693, 77.6247, 85.5067, 94.189, 103.753, 114.288, 125.893, 138.676, 152.757, 168.267, 185.353, 204.174, 224.905, 247.742, 272.898, 300.608, 331.131, 364.754, 401.791, 442.588, 487.528, 537.032, 591.562, 651.628, 717.794, 790.679, 870.964};
+
+
+
+//
+// class declaration
+//
+
+class HOinPFAlgo : public edm::EDAnalyzer {
+   public:
+      explicit HOinPFAlgo(const edm::ParameterSet&);
+      ~HOinPFAlgo();
+
+      static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
+
+
+   private:
+      virtual void beginJob() ;
+      virtual void analyze(const edm::Event&, const edm::EventSetup&);
+      virtual void endJob() ;
+
+      virtual void beginRun(edm::Run const&, edm::EventSetup const&);
+      virtual void endRun(edm::Run const&, edm::EventSetup const&);
+      virtual void beginLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&);
+      virtual void endLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&);
+
+  void fillmetarray();
+
+  // ----------member data ---------------------------
+  edm::Service<TFileService> fs;
+
+  int Nevt;
+  bool isMC;
+  bool isHistFill;
+  int iTag;
+  int iTagMET;
+  int tagHO;
+  bool ReRECO;
+  bool isOnlyDigi;
+  double jtptthr;
+
+  TTree* T1;
+
+  TH1F *h_calojtpt , *h_calojtpt_00 ;
+  TH1F *h_calojteta, *h_calojteta_00;
+  TH1F *h_calojtphi, *h_calojtphi_00;
+
+  TH1F *h_pfjtpt , *h_pfjtpt_00 ;
+  TH1F *h_pfjteta, *h_pfjteta_00;
+  TH1F *h_pfjtphi, *h_pfjtphi_00;
+
+
+  int irun, ievt, ilumi;
+  int nprim;
+
+  int ncalojetsst;
+  int calojetmulst[njetmx];
+  float calojetmomst[njetmx], calojetthest[njetmx], calojetphist[njetmx], calojetenst[njetmx], calojetummst[njetmx], 
+    calojetemfst[njetmx],  calojethost[njetmx];
+
+  int ncalojets0a;
+  int calojetmul0a[njetmx];
+  float calojetmom0a[njetmx], calojetthe0a[njetmx], calojetphi0a[njetmx], calojeten0a[njetmx], calojetumm0a[njetmx], 
+    calojetemf0a[njetmx],  calojetho0a[njetmx];
+
+
+
+  int njetsst;
+  int jetmulst[njetmx];
+  float jetenrst[njetmx], jetuncst[njetmx], jetummst[njetmx], jetmomst[njetmx], jetthest[njetmx], jetphist[njetmx], chghadst[njetmx], 
+    neuemfst[njetmx], neuhadst[njetmx];
+
+  int njets0a;
+  int jetmul0a[njetmx];
+  float jetenr0a[njetmx], jetunc0a[njetmx], jetumm0a[njetmx], jetmom0a[njetmx], jetthe0a[njetmx], jetphi0a[njetmx], chghad0a[njetmx], 
+    neuemf0a[njetmx], neuhad0a[njetmx];
+
+
+};
+
+//
+// constants, enums and typedefs
+//
+
+//
+// static data member definitions
+//
+
+//
+// constructors and destructor
+//
+HOinPFAlgo::HOinPFAlgo(const edm::ParameterSet& pset)
+
+{
+  //now do what ever initialization is needed
+  isMC      = pset.getUntrackedParameter<bool>("MonteCarlo", true);
+  isHistFill = pset.getUntrackedParameter<bool>("HistFill", true); 
+  iTag = pset.getUntrackedParameter<int>("Tagged");
+  ReRECO = pset.getUntrackedParameter<bool>("ReRECO", true);
+  isOnlyDigi = pset.getUntrackedParameter<bool>("OnlyDIGI", false);
+
+  tagHO = pset.getUntrackedParameter<int>("tagHO", 1);
+  jtptthr = pset.getUntrackedParameter<double>("Ptcut", 51.0);
+
+
+  Nevt=0;
+
+}
+
+
+HOinPFAlgo::~HOinPFAlgo()
+{
+  // do anything here that needs to be done at desctruction time
+  // (e.g. close files, deallocate resources etc.)
+}
+
+
+//
+// member functions
+//
+
+// ------------ method called for each event  ------------
+void
+HOinPFAlgo::analyze(const edm::Event& iEvent, const edm::EventSetup& pset)
+{
+
+  Nevt++;
+  using namespace edm;
+  
+  cout <<"\t HOinPFAlgo::analyze "<< Nevt<<" "<<iEvent.id().run()<<" "<<iEvent.id().event()<<" "<<iTag<<" "<<jtptthr<<endl;
+  //if (Nevt%100==1) cout <<"HOinPFAlgo::analyze "<< Nevt<<" "<<iEvent.id().run()<<" "<<iEvent.id().event()<<" "<<iTag<<" "<<jtptthr<<endl;
+  
+  irun  = iEvent.id().run();
+  ievt  = iEvent.id().event();
+  ilumi = iEvent.id().luminosityBlock();
+
+
+  reco::TrackBase::Point beamPoint(0,0, 0);
+  edm::Handle<reco::BeamSpot> beamSpotH;
+  iEvent.getByLabel("offlineBeamSpot",beamSpotH);
+  if (beamSpotH.isValid()){
+    beamPoint = beamSpotH->position();
+  }
+
+
+  Handle<VertexCollection> primaryVertices;  
+   try {
+     iEvent.getByLabel("offlinePrimaryVertices",primaryVertices);
+   } catch ( cms::Exception &iEvent ) {;}
+   if (primaryVertices.isValid()) {
+     int ndofct=0;
+     int nchict=0;
+     int nvert = 0;
+     for (reco::VertexCollection::const_iterator vert=primaryVertices->begin(); vert<primaryVertices->end(); vert++) {
+       nvert++;
+       if (vert->isValid() && !vert->isFake()) {
+	 if (vert->ndof()>7) { 
+	   ndofct++;
+	   if (vert->normalizedChi2()<5) nchict++;
+	 }
+       }
+     }
+     nprim = min(99,nvert) + 100*min(99,ndofct) + 10000*min(99,nchict);
+   } else { nprim = 0;}
+  
+
+   cout <<" # of primary vertices  : " << nprim << endl;
+  
+  
+   if (!isOnlyDigi) { 
+     
+     //! ak5CaloJet
+     edm::Handle<edm::ValueMap<reco::JetID> > caloIds;
+     iEvent.getByLabel("ak5JetID", caloIds);
+     
+     edm::Handle<reco::CaloJetCollection>calojetst;
+     InputTag jetLabel("ak5CaloJets","","RECO");
+     iEvent.getByLabel(jetLabel, calojetst);
+
+
+
+     if (!calojetst.isValid()) {
+       InputTag jetLabel2( jetLabel.label(), jetLabel.instance(), "HLT");
+       iEvent.getByLabel(jetLabel2, calojetst);
+       cout << " \t \t  WARNING !!! Could not find the calo jet " <<endl;
+     }
+
+     ncalojetsst=0;
+     if (calojetst.isValid()) {
+       
+       for (unsigned ijet = 0; ijet< calojetst->size(); ijet++) {
+
+	 if (abs((*calojetst)[ijet].eta())>etarng) continue;
+
+	 h_calojtpt ->Fill((*calojetst)[ijet].pt());
+	 h_calojteta->Fill((*calojetst)[ijet].eta());
+	 h_calojtphi->Fill((*calojetst)[ijet].phi());
+	 
+	 if ((*calojetst)[ijet].pt()<jtptbins[0]) continue;
+	 int ipass = 1;
+	 if ((*calojetst)[ijet].nConstituents() <2) continue;
+	 if (abs((*calojetst)[ijet].eta())<2.6 && (*calojetst)[ijet].emEnergyFraction() <0.01) ipass = 0; //continue;
+	 int ipasstight = ipass;
+	 if (abs((*calojetst)[ijet].eta())<2.6 && (*calojetst)[ijet].emEnergyFraction() >=1.0) ipasstight = 0; //continue;
+
+      	 Hep3Vector tmp3v1((*calojetst)[ijet].px(), (*calojetst)[ijet].py(), (*calojetst)[ijet].pz());
+      	 calojetmomst[ncalojetsst] = tmp3v1.mag();
+      	 calojetthest[ncalojetsst] = tmp3v1.theta();
+      	 calojetphist[ncalojetsst] = tmp3v1.phi();
+      	 calojetenst [ncalojetsst] = (2*ipass - 1)*(*calojetst)[ijet].energy();
+      	 calojetmulst[ncalojetsst] = (*calojetst)[ijet].nConstituents();
+      	 if (ipasstight==0) calojetmulst[ncalojetsst] = -calojetmulst[ncalojetsst];
+     	 
+      	 calojetemfst[ncalojetsst] = (*calojetst)[ijet].emEnergyFraction();
+      	 calojethost [ncalojetsst] = (*calojetst)[ijet].hadEnergyInHO();
+     	 
+      	 double energy = 0;
+      	 for (int ij=0; ij<(*calojetst)[ijet].nConstituents(); ij++) {
+	   energy +=(*calojetst)[ijet].getCaloConstituent(ij)->p();
+      	 }
+      	 calojetummst[ncalojetsst] = energy;
+      	 cout << "\t \t " <<  ijet <<  " uncorrected  energy : " << energy << "  energy :  "  << (*calojetst)[ijet].energy() << endl;
+      	 ncalojetsst++;
+      	 if (ncalojetsst>=njetmx) break;
+       }//! for 
+       //cout << "  \t \t # of calojets : " << calojetst->size() << " # of jets passed the cuts : "  << ncalojetsst << endl;       
+     }//! if calojet
+     
+
+     //! ak5CaloJets00
+     edm::Handle<reco::CaloJetCollection>calojet0a;
+     try {
+       iEvent.getByLabel("ak5CaloJets00", calojet0a);
+     } catch ( cms::Exception &iEvent ) { ;}
+     ncalojets0a=0;
+     if (calojet0a.isValid()) {
+       for (unsigned ijet = 0; ijet< calojet0a->size(); ijet++) {
+         if (abs((*calojet0a)[ijet].eta())>etarng) continue;
+
+	 h_calojtpt_00 ->Fill((*calojet0a)[ijet].pt());
+	 h_calojteta_00->Fill((*calojet0a)[ijet].eta());
+	 h_calojtphi_00->Fill((*calojet0a)[ijet].phi());
+
+         if ((*calojet0a)[ijet].pt()<jtptbins[0]) continue;
+
+         int ipass = 1;
+         if ((*calojet0a)[ijet].nConstituents() <2) continue;
+         if (abs((*calojet0a)[ijet].eta())<2.6 && (*calojet0a)[ijet].emEnergyFraction() <0.01) ipass = 0; //continue;
+         int ipasstight = ipass;
+         if (abs((*calojet0a)[ijet].eta())<2.6 && (*calojet0a)[ijet].emEnergyFraction() >=1.0) ipasstight = 0; //continue;
+
+         Hep3Vector tmp3v1((*calojet0a)[ijet].px(), (*calojet0a)[ijet].py(), (*calojet0a)[ijet].pz());
+
+         calojetmom0a[ncalojets0a] = tmp3v1.mag();
+         calojetthe0a[ncalojets0a] = tmp3v1.theta();
+         calojetphi0a[ncalojets0a] = tmp3v1.phi();
+         calojeten0a [ncalojets0a] = (2*ipass - 1)*(*calojet0a)[ijet].energy();
+         calojetmul0a[ncalojets0a] = (*calojet0a)[ijet].nConstituents();
+         if (ipasstight==0) calojetmul0a[ncalojets0a] = -calojetmul0a[ncalojets0a];
+
+         calojetemf0a[ncalojets0a] = (*calojet0a)[ijet].emEnergyFraction();
+         calojetho0a [ncalojets0a] = (*calojet0a)[ijet].hadEnergyInHO();
+         double energy = 0;
+         for (int ij=0; ij<(*calojet0a)[ijet].nConstituents(); ij++) {
+           energy +=(*calojet0a)[ijet].getCaloConstituent(ij)->p();
+         }
+         calojetumm0a[ncalojets0a] = energy;
+         ncalojets0a++;
+         if (ncalojets0a>=njetmx) break;
+       }
+     }
+     
+     //! ak5PFJets
+     edm::Handle<reco::PFJetCollection> PFJetsst;
+     njetsst = 0;
+     InputTag jetLabelx("ak5PFJets","","RECO");
+     iEvent.getByLabel(jetLabelx, PFJetsst);
+     if (!PFJetsst.isValid()) {
+       InputTag jetLabel2(jetLabelx.label(), jetLabelx.instance(), "HLT");
+       iEvent.getByLabel(jetLabel2, PFJetsst);
+     }
+     if (PFJetsst.isValid()) {
+       for (unsigned jet = 0; jet<PFJetsst->size(); jet++) {
+         if (abs((*PFJetsst)[jet].eta())>etarng) continue;
+	 h_pfjtpt ->Fill((*PFJetsst)[jet].pt());
+	 h_pfjteta->Fill((*PFJetsst)[jet].eta());
+	 h_pfjtphi->Fill((*PFJetsst)[jet].phi());
+
+         if ((*PFJetsst)[jet].pt()<jtptbins[0]) continue;
+         HepLorentzVector jet4v((*PFJetsst)[jet].px(),(*PFJetsst)[jet].py(),(*PFJetsst)[jet].pz(), (*PFJetsst)[jet].p());
+	 
+         jetuncst[njetsst] = 0.0;
+         jetummst[njetsst] = 0.0;
+         jetmomst[njetsst] = jet4v.rho();
+         jetthest[njetsst] = jet4v.theta();
+         jetphist[njetsst] = jet4v.phi();
+	 
+         neuemfst[njetsst] = (*PFJetsst)[jet].neutralEmEnergyFraction();
+         chghadst[njetsst] = (*PFJetsst)[jet].chargedHadronEnergyFraction();
+         neuhadst[njetsst] = (*PFJetsst)[jet].neutralHadronEnergyFraction();
+	 
+	 jetmulst[njetsst] = min(9,(*PFJetsst)[jet].muonMultiplicity())
+           + 10*min(99,(*PFJetsst)[jet].chargedHadronMultiplicity())
+           + 1000*min(99,(*PFJetsst)[jet].neutralHadronMultiplicity())
+           + 100000*min(99,(*PFJetsst)[jet].electronMultiplicity())
+           + 10000000*min(99,(*PFJetsst)[jet].photonMultiplicity ());
+	 
+         HepLorentzVector const4v(0,0,0,0);
+         for (int ix=0; ix<(*PFJetsst)[jet].nConstituents(); ix++) {
+           const reco::PFCandidatePtr pfcand = (*PFJetsst)[jet].getPFConstituent (ix);
+           const4v +=HepLorentzVector(pfcand->px(), pfcand->py(), pfcand->pz(), pfcand->energy());
+         }
+         jetuncst[njetsst] =const4v.e();
+         jetummst[njetsst] =const4v.rho();
+	 
+         if (++njetsst >=njetmx) break;
+       }
+     }//! ak5PFJets
+
+     //! ak5PFJets00
+     edm::Handle<reco::PFJetCollection> PFJets0a;
+     njets0a = 0;
+     bool isPFJets0a = true;
+     try {
+       iEvent.getByLabel("ak5PFJets00", PFJets0a);
+     } catch ( cms::Exception &iEvent ) { isPFJets0a = false; }
+     if (isPFJets0a && PFJets0a.isValid()) {
+       for (unsigned jet = 0; jet<PFJets0a->size(); jet++) {
+         if (abs((*PFJets0a)[jet].eta())>etarng) continue;
+
+	 h_pfjtpt_00 ->Fill((*PFJets0a)[jet].pt());
+	 h_pfjteta_00->Fill((*PFJets0a)[jet].eta());
+	 h_pfjtphi_00->Fill((*PFJets0a)[jet].phi());
+
+         if ((*PFJets0a)[jet].pt()<jtptbins[0]) continue;
+         HepLorentzVector jet4v((*PFJets0a)[jet].px(),(*PFJets0a)[jet].py(),(*PFJets0a)[jet].pz(), (*PFJets0a)[jet].p());
+
+         jetunc0a[njets0a] = 0.0;
+         jetumm0a[njets0a] = 0.0;
+         jetmom0a[njets0a] = jet4v.rho();
+         jetthe0a[njets0a] = jet4v.theta();
+         jetphi0a[njets0a] = jet4v.phi();
+
+         neuemf0a[njets0a] = (*PFJets0a)[jet].neutralEmEnergyFraction();
+         chghad0a[njets0a] = (*PFJets0a)[jet].chargedHadronEnergyFraction();
+         neuhad0a[njets0a] = (*PFJets0a)[jet].neutralHadronEnergyFraction();
+         //      cout <<"jets0a "<< jet4v<<" "<<misetpf0a<<" "<<neuhad0a[njets0a]<<endl;
+   	jetmul0a[njets0a] = min(9,(*PFJets0a)[jet].muonMultiplicity())
+           + 10*min(99,(*PFJets0a)[jet].chargedHadronMultiplicity())
+           + 1000*min(99,(*PFJets0a)[jet].neutralHadronMultiplicity())
+           + 100000*min(99,(*PFJets0a)[jet].electronMultiplicity())
+           + 10000000*min(99,(*PFJets0a)[jet].photonMultiplicity ());
+
+         HepLorentzVector const4v(0,0,0,0);
+         for (int ix=0; ix<(*PFJets0a)[jet].nConstituents(); ix++) {
+           const reco::PFCandidatePtr pfcand = (*PFJets0a)[jet].getPFConstituent (ix);
+
+           const4v +=HepLorentzVector(pfcand->px(), pfcand->py(), pfcand->pz(), pfcand->energy());
+         }
+         jetunc0a[njets0a] =const4v.e();
+         jetumm0a[njets0a] =const4v.rho();
+
+         if (++njets0a >=njetmx) break;
+       }
+     }//! ak5PFJet00
+
+   }//! !isDigiOnly
+  
+
+   T1->Fill();
+}
+
+
+// ------------ method called once each job just before starting event loop  ------------
+void 
+HOinPFAlgo::beginJob()
+{
+
+  T1 = fs->make<TTree>("T1","HOinPF");
+  T1->Branch("irun", &irun, "irun/I");
+  T1->Branch("ievt", &ievt, "ievt/I");
+  T1->Branch("ilumi", &ilumi, "ilumi/I");
+  
+  if (!isOnlyDigi) {
+    //! Calo
+    T1->Branch("ncalojetsst", &ncalojetsst, "ncalojetsst/I");
+    T1->Branch("calojetmulst",calojetmulst,"calojetmulst[ncalojetsst]/I");
+    T1->Branch("calojetmomst",calojetmomst,"calojetmomst[ncalojetsst]/F");
+    T1->Branch("calojetthest",calojetthest,"calojetthest[ncalojetsst]/F");
+    T1->Branch("calojetphist",calojetphist,"calojetphist[ncalojetsst]/F");
+    T1->Branch("calojetemfst",calojetemfst,"calojetemfst[ncalojetsst]/F");
+    T1->Branch("calojetenst",calojetenst,"calojetenst[ncalojetsst]/F");
+    T1->Branch("calojetummst",calojetummst,"calojetummst[ncalojetsst]/F");
+    T1->Branch("calojethost",calojethost,"calojethost[ncalojetsst]/F");
+
+    //! 00
+    T1->Branch("ncalojets0a", &ncalojets0a, "ncalojets0a/I");
+    T1->Branch("calojetmul0a",calojetmul0a,"calojetmul0a[ncalojets0a]/I");
+    T1->Branch("calojetmom0a",calojetmom0a,"calojetmom0a[ncalojets0a]/F");
+    T1->Branch("calojetthe0a",calojetthe0a,"calojetthe0a[ncalojets0a]/F");
+    T1->Branch("calojetphi0a",calojetphi0a,"calojetphi0a[ncalojets0a]/F");
+    T1->Branch("calojetemf0a",calojetemf0a,"calojetemf0a[ncalojets0a]/F");
+    T1->Branch("calojeten0a",calojeten0a,"calojeten0a[ncalojets0a]/F");
+    T1->Branch("calojetumm0a",calojetumm0a,"calojetumm0a[ncalojets0a]/F");
+    T1->Branch("calojetho0a",calojetho0a,"calojetho0a[ncalojets0a]/F");
+
+
+    //! PF jets
+    T1->Branch("njetsst", &njetsst, "njetsst/I");
+    T1->Branch("jetuncst",jetuncst,"jetuncst[njetsst]/F");
+    T1->Branch("jetummst",jetummst,"jetummst[njetsst]/F");
+    T1->Branch("jetmomst",jetmomst,"jetmomst[njetsst]/F");
+    T1->Branch("jetthest",jetthest,"jetthest[njetsst]/F");
+    T1->Branch("jetphist",jetphist,"jetphist[njetsst]/F");
+    T1->Branch("chghadst",chghadst,"chghadst[njetsst]/F");
+    T1->Branch("neuemfst",neuemfst,"neuemfst[njetsst]/F");
+    T1->Branch("neuhadst",neuhadst,"neuhadst[njetsst]/F");
+    T1->Branch("jetmulst",jetmulst,"jetmulst[njetsst]/I");
+
+    //! PFJet 00
+    T1->Branch("njets0a", &njets0a, "njets0a/I");
+    T1->Branch("jetunc0a",jetunc0a,"jetunc0a[njets0a]/F");
+    T1->Branch("jetumm0a",jetumm0a,"jetumm0a[njets0a]/F");
+    T1->Branch("jetmom0a",jetmom0a,"jetmom0a[njets0a]/F");
+    T1->Branch("jetthe0a",jetthe0a,"jetthe0a[njets0a]/F");
+    T1->Branch("jetphi0a",jetphi0a,"jetphi0a[njets0a]/F");
+    T1->Branch("chghad0a",chghad0a,"chghad0a[njets0a]/F");
+    T1->Branch("neuemf0a",neuemf0a,"neuemf0a[njets0a]/F");
+    T1->Branch("neuhad0a",neuhad0a,"neuhad0a[njets0a]/F");
+    T1->Branch("jetmul0a",jetmul0a,"jetmul0a[njets0a]/I");
+
+  }
+
+  if(isHistFill){
+    TH1::SetDefaultSumw2();
+    TH2::SetDefaultSumw2();
+    TFileDirectory histDir = fs->mkdir("Histos");
+    h_calojtpt  = histDir.make<TH1F>("calojtpt" , "Calojet pT ", 800, jtptbins[0], jtptbins[njtptbin+1]);
+    h_calojteta = histDir.make<TH1F>("calojteta", "Calojet eta", 72, -3.0, 3.0);
+    h_calojtphi = histDir.make<TH1F>("calojtphi", "Calojet phi", 72, -M_PI, M_PI);
+
+    h_calojtpt_00  = histDir.make<TH1F>("calojtpt_00" , "Calojet pT 00 ", 800, jtptbins[0], jtptbins[njtptbin+1]);
+    h_calojteta_00 = histDir.make<TH1F>("calojteta_00", "Calojet eta 00 ", 72, -3.0, 3.0);
+    h_calojtphi_00 = histDir.make<TH1F>("calojtphi_00", "Calojet phi 00 ", 72, -M_PI, M_PI);
+
+    h_pfjtpt  = histDir.make<TH1F>("pfjtpt" , "PFJet pT ", 800, jtptbins[0], jtptbins[njtptbin+1]);
+    h_pfjteta = histDir.make<TH1F>("pfjteta", "PFJet eta", 72, -3.0, 3.0);
+    h_pfjtphi = histDir.make<TH1F>("pfjtphi", "PFJet phi", 72, -M_PI, M_PI);
+
+    h_pfjtpt_00  = histDir.make<TH1F>("pfjtpt_00" , "PFJet pT 00 ", 800, jtptbins[0], jtptbins[njtptbin+1]);
+    h_pfjteta_00 = histDir.make<TH1F>("pfjteta_00", "PFJet eta 00 ", 72, -3.0, 3.0);
+    h_pfjtphi_00 = histDir.make<TH1F>("pfjtphi_00", "PFJet phi 00 ", 72, -M_PI, M_PI);
+  }
+}
+
+// ------------ method called once each job just after ending the event loop  ------------
+void 
+HOinPFAlgo::endJob() 
+{
+  // theFile->cd();
+  // theFile->Write();
+  // theFile->Close();
+  cout<<"End of HOinPFAlgo with event "<<Nevt<<endl;
+}
+
+// ------------ method called when starting to processes a run  ------------
+void 
+HOinPFAlgo::beginRun(edm::Run const&, edm::EventSetup const&)
+{
+}
+
+// ------------ method called when ending the processing of a run  ------------
+void 
+HOinPFAlgo::endRun(edm::Run const&, edm::EventSetup const&)
+{
+}
+
+// ------------ method called when starting to processes a luminosity block  ------------
+void 
+HOinPFAlgo::beginLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&)
+{
+}
+
+// ------------ method called when ending the processing of a luminosity block  ------------
+void 
+HOinPFAlgo::endLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&)
+{
+}
+
+// ------------ method fills 'descriptions' with the allowed parameters for the module  ------------
+void
+HOinPFAlgo::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
+  //The following says we do not know what parameters are allowed so do no validation
+  // Please change this to state exactly what you do use, even if it is no parameters
+  edm::ParameterSetDescription desc;
+  desc.setUnknown();
+  descriptions.addDefault(desc);
+}
+
+
+void HOinPFAlgo::fillmetarray() { // int ix, float* hoarray) {
+}
+
+//define this as a plug-in
+DEFINE_FWK_MODULE(HOinPFAlgo);
+/*
+  T1->Draw("(hbhesig0+hbhesig1+hbhesig2+hbhesig3+hbhesig4+hbhesig5+hbhesig6+hbhesig7+ hbhesig8+hbhesig9)/hbhetot");
+/uscms_data/d2/majumder/anal/CMSSW_5_3_4_patch2/src/Test/HOinPFAlgo/test
+
+*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

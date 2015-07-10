@@ -1,0 +1,611 @@
+
+// -*- C++ -*-
+//
+// Package:    HOinPFAlgo
+// Class:      HOinPFAlgo
+// 
+/**\class HOinPFAlgo HOinPFAlgo.cc Test/HOinPFAlgo/src/HOinPFAlgo.cc
+
+ Description: [one line class summary]
+
+ Implementation:
+     [Notes on implementation]
+*/
+//
+// Original Author:  Gobinda Majumder,22 1-031,+41227679681,
+//         Created:  Thu Dec  1 13:09:13 CET 2011
+// $Id$
+//
+//
+
+
+// system include files
+#include <memory>
+
+// user include files
+#include "FWCore/Framework/interface/Frameworkfwd.h"
+#include "FWCore/Framework/interface/EDAnalyzer.h"
+
+#include "FWCore/Framework/interface/Event.h"
+#include "FWCore/Framework/interface/MakerMacros.h"
+
+#include "FWCore/ParameterSet/interface/ParameterSet.h"
+#include "FWCore/ServiceRegistry/interface/Service.h"
+#include "CommonTools/UtilAlgos/interface/TFileService.h"
+#include "DataFormats/ParticleFlowCandidate/interface/PFCandidate.h"
+#include "DataFormats/JetReco/interface/PFJet.h"
+#include "DataFormats/JetReco/interface/CaloJet.h"
+#include "DataFormats/JetReco/interface/CaloJetCollection.h"
+#include "DataFormats/METReco/interface/PFMET.h"
+#include "DataFormats/METReco/interface/PFMETCollection.h"
+#include "DataFormats/METReco/interface/MET.h"
+#include "DataFormats/METReco/interface/CaloMET.h"
+#include "DataFormats/METReco/interface/METCollection.h"
+#include "DataFormats/METReco/interface/CaloMETCollection.h"
+
+#include "DataFormats/METReco/interface/GenMET.h"
+#include "DataFormats/METReco/interface/GenMETFwd.h"
+
+#include "DataFormats/JetReco/interface/GenJet.h"
+#include "DataFormats/JetReco/interface/GenJetCollection.h"
+#include "DataFormats/HepMCCandidate/interface/GenParticle.h"
+#include "DataFormats/HepMCCandidate/interface/GenParticleFwd.h"
+#include "DataFormats/HcalRecHit/interface/HcalRecHitCollections.h"
+#include "DataFormats/JetReco/interface/JetID.h"
+#include "TFile.h"
+#include "TH1F.h"
+#include "TH2F.h"
+#include "TTree.h"
+#include "CLHEP/Vector/LorentzVector.h"
+
+#include "DataFormats/EgammaCandidates/interface/GsfElectron.h"
+#include "DataFormats/EgammaCandidates/interface/GsfElectronFwd.h"
+#include "DataFormats/GsfTrackReco/interface/GsfTrack.h"
+#include "DataFormats/MuonReco/interface/Muon.h"
+#include "DataFormats/MuonReco/interface/MuonSelectors.h"
+#include "DataFormats/VertexReco/interface/Vertex.h"
+#include "DataFormats/VertexReco/interface/VertexFwd.h"
+
+#include <string>
+
+#include <iostream>
+#include <fstream>
+
+#include "DataFormats/EgammaCandidates/interface/Photon.h"
+#include "DataFormats/EgammaCandidates/interface/PhotonFwd.h"
+
+#include "DataFormats/HcalDigi/interface/HcalDigiCollections.h"
+#include "DataFormats/HcalDetId/interface/HcalDetId.h"
+#include "CalibFormats/HcalObjects/interface/HcalCoderDb.h"
+#include "CalibFormats/HcalObjects/interface/HcalCalibrations.h"
+//#include "CalibFormats/HcalObjects/interface/HcalCalibrationWidths.h"
+#include "CalibFormats/HcalObjects/interface/HcalDbService.h"
+#include "CalibFormats/HcalObjects/interface/HcalDbRecord.h"
+//#include "CondFormats/HcalObjects/interface/HcalQIECoder.h"
+//#include "CondFormats/HcalObjects/interface/HcalPedestal.h"
+//#include "CondFormats/HcalObjects/interface/HcalPedestalWidth.h"
+//#include "CondFormats/HcalObjects/interface/HcalElectronicsMap.h"
+#include "FWCore/Framework/interface/ESHandle.h"
+
+//#include "DataFormats/HcalCalibObjects/interface/HBHERecTime.h"
+//#include "DataFormats/HcalCalibObjects/interface/HBHERecTimeCollection.h"
+
+using namespace std;
+using namespace edm;
+using namespace reco;  
+using namespace CLHEP;
+
+const float mu_mass = 0.105658;
+const float el_mass = 0.000511;
+const float pival = acos(-1.);
+
+const int nhbetamx=60;
+const int nhbphimx=72;
+const int nhbdepthmx=4;
+
+const int netabin= 15;
+const int netamx = 30;
+const int nphimx = 72;
+const int nchnmx = 10;
+const int ncidmx = 5;
+int gethbieta(int ij) { return (ij<nhbetamx/2) ? -nhbetamx/2 + ij : -nhbetamx/2 + ij + 1;}
+int invert_hbieta(int ieta) { return (ieta<0) ? nhbetamx/2+ ieta : nhbetamx/2 +ieta - 1;}
+
+int getieta(int ij) { 
+  if (ij<netamx/2) { 
+    return  -netamx/2 + ij;
+  } else {
+    return  -netamx/2 + ij + 1;
+  }
+}
+int invert_ieta(int ieta) { 
+  if (ieta<0) {
+    return netamx/2 + ieta;
+  } else {
+    return netamx/2 + ieta - 1;
+  }
+}
+
+
+static const int njetmx = 500;
+
+static const int njtptbin =9;
+double jtptbins[njtptbin+1]={150., 200., 400., 600., 800., 1200., 1600., 2000., 2500., 5000.};
+//double jtptbins[njtptbin+1]={30., 70., 120., 200., 400., 700., 1200., 2500., 5000.};
+static const double etarng=3.0; //5.0;
+static const double mnphi=-2.35; // iphi=45
+static const double mxphi=-0.70; // iphi=64
+//For histogrammes of time profile 
+static const int nhbsigmx=8;
+//double hbsigmxs[nhbsigmx+1]={-100.0, 0.0, 5.0, 10.0, 30.0, 100.0, 300.0, 1000.0, 2000.0};
+double hbsigmxs[nhbsigmx+1]={0.2, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 300.0, 3000.0};
+
+static const int ntimemx=50;
+
+int getbinid(double val, int nbmx, double* array) {
+  if (val<array[0]) return -2;
+  for (int ix=0; ix<=nbmx; ix++) {
+    if (val < array[ix]) return ix;
+  }
+  return -3;
+}
+
+int isitorbitgap(int ibr) {
+  if (ibr>=3451 && ibr<= 3559) return 1;
+  if (ibr>=3441 && ibr<= 3564) return 0;
+  if (ibr<=5) return 0;
+  if (ibr>=0) return -1;
+
+  if (ibr>= 238 && ibr<=265) return 1; 
+  if (ibr>= 508 && ibr<=535) return 1; 
+  if (ibr>= 858 && ibr<=886) return 1; 
+  if (ibr>= 1129 && ibr<=1156) return 1; 
+  if (ibr>= 1399 && ibr<=1426) return 1; 
+  if (ibr>= 1749 && ibr<=1777) return 1; 
+  if (ibr>= 2020 && ibr<=2047) return 1; 
+  if (ibr>= 2290 && ibr<=2317) return 1; 
+  if (ibr>= 2640 && ibr<=2668) return 1; 
+  if (ibr>= 2911 && ibr<=2938) return 1; 
+  if (ibr>= 3181 && ibr<=3208) return 1; 
+  if (ibr>= 3451 && ibr<=3559) return 1; 
+
+  if (ibr>= 68 && ibr<=85) return 0; 
+  if (ibr>= 148 && ibr<=165) return 0; 
+  if (ibr>= 228 && ibr<=275) return 0; 
+  if (ibr>= 338 && ibr<=355) return 0; 
+  if (ibr>= 418 && ibr<=435) return 0; 
+  if (ibr>= 498 && ibr<=545) return 0; 
+  if (ibr>= 608 && ibr<=625) return 0; 
+  if (ibr>= 688 && ibr<=705) return 0; 
+  if (ibr>= 768 && ibr<=785) return 0; 
+  if (ibr>= 848 && ibr<=896) return 0; 
+  if (ibr>= 959 && ibr<=976) return 0; 
+  if (ibr>= 1039 && ibr<=1056) return 0; 
+  if (ibr>= 1119 && ibr<=1166) return 0; 
+  if (ibr>= 1229 && ibr<=1246) return 0; 
+  if (ibr>= 1309 && ibr<=1326) return 0; 
+  if (ibr>= 1389 && ibr<=1436) return 0; 
+  if (ibr>= 1499 && ibr<=1516) return 0; 
+  if (ibr>= 1579 && ibr<=1596) return 0; 
+  if (ibr>= 1659 && ibr<=1676) return 0; 
+  if (ibr>= 1739 && ibr<=1787) return 0; 
+  if (ibr>= 1850 && ibr<=1867) return 0; 
+  if (ibr>= 1930 && ibr<=1947) return 0; 
+  if (ibr>= 2010 && ibr<=2057) return 0; 
+  if (ibr>= 2120 && ibr<=2137) return 0; 
+  if (ibr>= 2200 && ibr<=2217) return 0; 
+  if (ibr>= 2280 && ibr<=2327) return 0; 
+  if (ibr>= 2390 && ibr<=2407) return 0; 
+  if (ibr>= 2470 && ibr<=2487) return 0; 
+  if (ibr>= 2550 && ibr<=2567) return 0; 
+  if (ibr>= 2630 && ibr<=2678) return 0; 
+  if (ibr>= 2741 && ibr<=2758) return 0; 
+  if (ibr>= 2821 && ibr<=2838) return 0; 
+  if (ibr>= 2901 && ibr<=2948) return 0; 
+  if (ibr>= 3011 && ibr<=3028) return 0; 
+  if (ibr>= 3091 && ibr<=3108) return 0; 
+  if (ibr>= 3171 && ibr<=3218) return 0; 
+  if (ibr>= 3281 && ibr<=3298) return 0; 
+  if (ibr>= 3361 && ibr<=3378) return 0; 
+  if (ibr>= 3441 && ibr<=3569) return 0; 
+
+  return -1;
+}
+double theta_to_eta(double theta) { return -log(tan(theta/2.)); }
+
+static const int netajtbin=4;
+double etajtbins[netajtbin]={0.36, 0.90, 2.0, 3.0};
+
+
+struct JRA{
+  int irun, ievt, ilumi;
+  int nprim;
+
+  int ncalojets;
+  int calojetmul  [njetmx];
+  float calojetmom[njetmx];
+  float calojetthe[njetmx];
+  float calojetphi[njetmx];
+  float calojeten [njetmx];
+  float calojetumm[njetmx]; 
+  float calojetemf[njetmx];
+  float calojetho [njetmx];
+
+  int npfjets;
+  int pfjetmul[njetmx];
+  float pfjetmom[njetmx];
+  float pfjetthe[njetmx];
+  float pfjetphi[njetmx];
+  float pfjeten [njetmx];
+  float pfjetumm[njetmx];
+  float pfjetunc[njetmx];
+  float pfchghad[njetmx];
+  float pfneuhad[njetmx];
+  float pfneuemf[njetmx]; 
+};
+
+
+
+//
+// class declaration
+//
+
+class HOinPFAlgo : public edm::EDAnalyzer {
+   public:
+      explicit HOinPFAlgo(const edm::ParameterSet&);
+      ~HOinPFAlgo();
+
+      static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
+
+
+   private:
+      virtual void beginJob() ;
+      virtual void analyze(const edm::Event&, const edm::EventSetup&);
+      virtual void endJob() ;
+
+      virtual void beginRun(edm::Run const&, edm::EventSetup const&);
+      virtual void endRun(edm::Run const&, edm::EventSetup const&);
+      virtual void beginLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&);
+      virtual void endLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&);
+
+  void fillmetarray();
+
+  // ----------member data ---------------------------
+  edm::Service<TFileService> fs;
+
+
+  int Nevt;
+  edm::InputTag   jetidLabel_, calojetLabel_, pfjetLabel_;
+  int tagHO_;
+  bool doCaloJets_, doPFJets_;
+  bool reReco_;
+  bool isDigi_;
+  double jtPtThr_;
+
+  TTree* T1;
+
+  JRA jets_;
+};
+
+//
+// constants, enums and typedefs
+//
+
+//
+// static data member definitions
+//
+
+//
+// constructors and destructor
+//
+HOinPFAlgo::HOinPFAlgo(const edm::ParameterSet& pset)
+
+{
+  //now do what ever initialization is needed
+
+  reReco_       = pset.getUntrackedParameter<bool>("ReRECO", true);
+  isDigi_       = pset.getUntrackedParameter<bool>("OnlyDIGI", false);
+  doCaloJets_   = pset.getUntrackedParameter<bool>("doCaloJets", true);
+  doPFJets_     = pset.getUntrackedParameter<bool>("doPFJets", true);
+  jetidLabel_   = pset.getUntrackedParameter<InputTag>("JetIdTag");
+  calojetLabel_ = pset.getUntrackedParameter<InputTag>("CaloJetTag");
+  pfjetLabel_   = pset.getUntrackedParameter<InputTag>("PFJetTag");
+  tagHO_        = pset.getUntrackedParameter<int>("tagHO", 1);
+  jtPtThr_      = pset.getUntrackedParameter<double>("JetPtcut", 51.0);
+
+  Nevt=0;
+
+}
+
+
+HOinPFAlgo::~HOinPFAlgo()
+{
+  // do anything here that needs to be done at desctruction time
+  // (e.g. close files, deallocate resources etc.)
+}
+
+
+//
+// member functions
+//
+
+// ------------ method called for each event  ------------
+void
+HOinPFAlgo::analyze(const edm::Event& iEvent, const edm::EventSetup& pset)
+{
+
+  Nevt++;
+  using namespace edm;
+  
+  //bool isTreeFill = true;
+
+  cout <<"\t HOinPFAlgo::analyze "<< Nevt<<" "<<iEvent.id().run()<<" "<<iEvent.id().event()<<" "<<tagHO_<<" "<<jtPtThr_<<endl;
+  //if (Nevt%100==1) cout <<"HOinPFAlgo::analyze "<< Nevt<<" "<<iEvent.id().run()<<" "<<iEvent.id().event()<<" "<<iTag<<" "<<jtptthr<<endl;
+  
+  jets_.irun  = iEvent.id().run();
+  jets_.ievt  = iEvent.id().event();
+  jets_.ilumi = iEvent.id().luminosityBlock();
+
+
+  reco::TrackBase::Point beamPoint(0,0, 0);
+  edm::Handle<reco::BeamSpot> beamSpotH;
+  iEvent.getByLabel("offlineBeamSpot",beamSpotH);
+  if (beamSpotH.isValid()){
+    beamPoint = beamSpotH->position();
+  }
+
+
+  Handle<VertexCollection> primaryVertices;  
+   try {
+     iEvent.getByLabel("offlinePrimaryVertices",primaryVertices);
+   } catch ( cms::Exception &iEvent ) {;}
+   if (primaryVertices.isValid()) {
+     int ndofct=0;
+     int nchict=0;
+     int nvert = 0;
+     for (reco::VertexCollection::const_iterator vert=primaryVertices->begin(); vert<primaryVertices->end(); vert++) {
+       nvert++;
+       if (vert->isValid() && !vert->isFake()) {
+	 if (vert->ndof()>7) { 
+	   ndofct++;
+	   if (vert->normalizedChi2()<5) nchict++;
+	 }
+       }
+     }
+     jets_.nprim = min(99,nvert) + 100*min(99,ndofct) + 10000*min(99,nchict);
+   } else { jets_.nprim = 0;}
+
+   cout <<" # of primary vertices  : " << jets_.nprim << endl;
+
+   /*
+     
+   if (doCaloJets_) {
+
+     //! ak5CaloJet
+     edm::Handle<edm::ValueMap<reco::JetID> > caloIds;
+     //if(isDigi_)iEvent.getByLabel(jetidLabel_, caloIds);
+     iEvent.getByLabel(jetidLabel_, caloIds);
+     
+     edm::Handle<reco::CaloJetCollection>CaloJetColl;
+     iEvent.getByLabel(calojetLabel_, CaloJetColl);
+     
+     jets_.ncalojets=0;
+     if (CaloJetColl.isValid()) {
+       for (unsigned ijet = 0; ijet< CaloJetColl->size(); ijet++) {
+
+	 const reco::CaloJet  &calojet = (*CaloJetColl)[ijet];
+
+	 if (fabs(calojet.eta()) > etarng || calojet.pt() < jtptbins[0]) continue;
+
+	 int ipass = 1;
+	 if (calojet.nConstituents() < 2) continue;
+	 if (fabs(calojet.eta())<2.6 && calojet.emEnergyFraction() <0.01) ipass = 0; //continue;
+	 int ipasstight = ipass;
+	 if (fabs(calojet.eta())<2.6 && calojet.emEnergyFraction() >=1.0) ipasstight = 0; //continue;
+
+      	 Hep3Vector tmp3v1(calojet.px(), calojet.py(), calojet.pz());
+      	 jets_.calojetmom  [jets_.ncalojets] = tmp3v1.mag();
+      	 jets_.calojetthe  [jets_.ncalojets] = tmp3v1.theta();
+      	 jets_.calojetphi  [jets_.ncalojets] = tmp3v1.phi();
+      	 jets_.calojeten   [jets_.ncalojets] = (2*ipass - 1)*calojet.energy();
+      	 jets_.calojetmul  [jets_.ncalojets] = calojet.nConstituents();
+      	 if (ipasstight==0) jets_.calojetmul[jets_.ncalojets] = -jets_.calojetmul[jets_.ncalojets];
+     	 
+      	 jets_.calojetemf[jets_.ncalojets] = calojet.emEnergyFraction();
+      	 jets_.calojetho [jets_.ncalojets] = calojet.hadEnergyInHO();
+     	 
+      	 double energy = 0;
+      	 for (int ij=0; ij< calojet.nConstituents(); ij++) {
+	   energy += calojet.getCaloConstituent(ij)->p();
+      	 }
+      	 jets_.calojetumm[jets_.ncalojets] = energy;
+      	 cout << "\t \t " <<  ijet <<  " uncorrected  energy : " << energy << "  energy :  "  << calojet.energy() << endl;
+      	 jets_.ncalojets++;
+      	 if (jets_.ncalojets>=njetmx) {
+	   isTreeFill = false;
+	   break;
+	 }
+       }
+     }
+   }
+
+   
+   if(doPFJets_){     
+
+     //! ak5PFJets
+     edm::Handle<reco::PFJetCollection> PFJetColl;
+     jets_.npfjets = 0;
+     iEvent.getByLabel(pfjetLabel_, PFJetColl);
+
+     if (PFJetColl.isValid()) {
+       for (unsigned ijet = 0; ijet<PFJetColl->size(); ijet++) {
+
+	 const reco::PFJet  &pfjet = (*PFJetColl)[ijet];
+	 
+         if ( fabs(pfjet.eta()) > etarng || pfjet.pt() < jtptbins[0] ) continue;
+	 
+         HepLorentzVector jet4v( pfjet.px(), pfjet.py(), pfjet.pz(), pfjet.p() );
+
+	 jets_.pfjetunc[jets_.npfjets] = 0.0;
+         jets_.pfjetumm[jets_.npfjets] = 0.0;
+         jets_.pfjetmom[jets_.npfjets] = jet4v.rho();
+         jets_.pfjetthe[jets_.npfjets] = jet4v.theta();
+         jets_.pfjetphi[jets_.npfjets] = jet4v.phi();
+	 
+         jets_.pfneuemf[jets_.npfjets] = pfjet.neutralEmEnergyFraction();
+         jets_.pfchghad[jets_.npfjets] = pfjet.chargedHadronEnergyFraction();
+         jets_.pfneuhad[jets_.npfjets] = pfjet.neutralHadronEnergyFraction();
+
+	 jets_.pfjeten[jets_.npfjets] = pfjet.energy();
+	 
+	 jets_.pfjetmul[jets_.npfjets] = min(9,pfjet.muonMultiplicity())
+           + 10*min(99,pfjet.chargedHadronMultiplicity())
+           + 1000*min(99,pfjet.neutralHadronMultiplicity())
+           + 100000*min(99,pfjet.electronMultiplicity())
+           + 10000000*min(99,pfjet.photonMultiplicity ());
+	 
+         HepLorentzVector const4v(0,0,0,0);
+         for (int ix=0; ix< pfjet.nConstituents(); ix++) {
+           const reco::PFCandidatePtr pfcand = pfjet.getPFConstituent (ix);
+           const4v +=HepLorentzVector(pfcand->px(), pfcand->py(), pfcand->pz(), pfcand->energy());
+         }
+         jets_.pfjetunc[jets_.npfjets] =const4v.e();
+         jets_.pfjetumm[jets_.npfjets] =const4v.rho();
+	 jets_.npfjets++;
+         if (jets_.npfjets >= njetmx) {
+	   isTreeFill = false;
+	   break;
+	 }
+       }
+     }
+   }
+   */   
+   //if( isTreeFill )T1->Fill();
+}
+
+
+// ------------ method called once each job just before starting event loop  ------------
+void 
+HOinPFAlgo::beginJob()
+{
+  
+  // string jetTagTitle = calojetLabel_.label()+" HO in PF";
+  // T1 = fs->make<TTree>("T1",jetTagTitle.c_str());
+  // T1->Branch("irun", &jets_.irun, "irun/I");
+  // T1->Branch("ievt", &jets_.ievt, "ievt/I");
+  // T1->Branch("ilumi", &jets_.ilumi, "ilumi/I");
+
+  // if(doCaloJets_){
+  //   //! Calo
+  //   T1->Branch("ncalojets" , &jets_.ncalojets,"ncalojets/I");
+  //   T1->Branch("calojetmul",jets_.calojetmul ,"calojetmulst[ncalojets]/I");
+  //   T1->Branch("calojetmom",jets_.calojetmom ,"calojetmomst[ncalojets]/F");
+  //   T1->Branch("calojetthe",jets_.calojetthe ,"calojetthest[ncalojets]/F");
+  //   T1->Branch("calojetphi",jets_.calojetphi ,"calojetphist[ncalojets]/F");
+  //   T1->Branch("calojetemf",jets_.calojetemf ,"calojetemfst[ncalojets]/F");
+  //   T1->Branch("calojeten" ,jets_.calojeten  ,"calojetenst[ncalojets]/F");
+  //   T1->Branch("calojetumm",jets_.calojetumm ,"calojetummst[ncalojets]/F");
+  //   T1->Branch("calojetho" ,jets_.calojetho ,"calojethost[ncalojets]/F");
+  // }
+
+  // if(doPFJets_){
+  //   //! PF jets
+  //   T1->Branch("npfjets", &jets_.npfjets , "npfjets/I");
+  //   T1->Branch("pfjeten" ,jets_.pfjeten  ,"pfjeten [npfjets]/F");
+  //   T1->Branch("pfjetunc",jets_.pfjetunc ,"pfjetunc[npfjets]/F");
+  //   T1->Branch("pfjetumm",jets_.pfjetumm ,"pfjetumm[npfjets]/F");
+  //   T1->Branch("pfjetmom",jets_.pfjetmom ,"pfjetmom[npfjets]/F");
+  //   T1->Branch("pfjetthe",jets_.pfjetthe ,"pfjetthe[npfjets]/F");
+  //   T1->Branch("pfjetphi",jets_.pfjetphi ,"pfjetphi[npfjets]/F");
+  //   T1->Branch("pfchghad",jets_.pfchghad ,"pfchghad[npfjets]/F");
+  //   T1->Branch("pfneuemf",jets_.pfneuemf ,"pfneuemf[npfjets]/F");
+  //   T1->Branch("pfneuhad",jets_.pfneuhad ,"pfneuhad[npfjets]/F");
+  //   T1->Branch("pfjetmul",jets_.pfjetmul ,"pfjetmul[npfjets]/I");
+  // }
+}
+
+// ------------ method called once each job just after ending the event loop  ------------
+void 
+HOinPFAlgo::endJob() 
+{
+  cout<<"End of HOinPFAlgo with event "<<Nevt<<endl;
+}
+
+// ------------ method called when starting to processes a run  ------------
+void 
+HOinPFAlgo::beginRun(edm::Run const&, edm::EventSetup const&)
+{
+}
+
+// ------------ method called when ending the processing of a run  ------------
+void 
+HOinPFAlgo::endRun(edm::Run const&, edm::EventSetup const&)
+{
+}
+
+// ------------ method called when starting to processes a luminosity block  ------------
+void 
+HOinPFAlgo::beginLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&)
+{
+}
+
+// ------------ method called when ending the processing of a luminosity block  ------------
+void 
+HOinPFAlgo::endLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&)
+{
+}
+
+// ------------ method fills 'descriptions' with the allowed parameters for the module  ------------
+void
+HOinPFAlgo::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
+  //The following says we do not know what parameters are allowed so do no validation
+  // Please change this to state exactly what you do use, even if it is no parameters
+  edm::ParameterSetDescription desc;
+  desc.setUnknown();
+  descriptions.addDefault(desc);
+}
+
+
+void HOinPFAlgo::fillmetarray() { // int ix, float* hoarray) {
+}
+
+//define this as a plug-in
+DEFINE_FWK_MODULE(HOinPFAlgo);
+/*
+  T1->Draw("(hbhesig0+hbhesig1+hbhesig2+hbhesig3+hbhesig4+hbhesig5+hbhesig6+hbhesig7+ hbhesig8+hbhesig9)/hbhetot");
+/uscms_data/d2/majumder/anal/CMSSW_5_3_4_patch2/src/Test/HOinPFAlgo/test
+
+*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,276 @@
+
+// -*- C++ -*-
+//
+// Package:    HOinPFAlgo
+// Class:      HOinPFAlgo
+// 
+/**\class HOinPFAlgo HOinPFAlgo.cc Test/HOinPFAlgo/src/HOinPFAlgo.cc
+
+ Description: [one line class summary]
+
+ Implementation:
+     [Notes on implementation]
+*/
+//
+// Original Author:  Gobinda Majumder,22 1-031,+41227679681,
+//         Created:  Thu Dec  1 13:09:13 CET 2011
+// $Id$
+//
+//
+
+
+// system include files
+#include <memory>
+
+// user include files
+#include "FWCore/Framework/interface/Frameworkfwd.h"
+#include "FWCore/Framework/interface/EDAnalyzer.h"
+
+#include "FWCore/Framework/interface/Event.h"
+#include "FWCore/Framework/interface/MakerMacros.h"
+
+#include "FWCore/ParameterSet/interface/ParameterSet.h"
+#include "FWCore/ServiceRegistry/interface/Service.h"
+#include "CommonTools/UtilAlgos/interface/TFileService.h"
+#include "DataFormats/ParticleFlowCandidate/interface/PFCandidate.h"
+#include "DataFormats/JetReco/interface/PFJet.h"
+#include "DataFormats/JetReco/interface/CaloJet.h"
+#include "DataFormats/JetReco/interface/CaloJetCollection.h"
+#include "DataFormats/METReco/interface/PFMET.h"
+#include "DataFormats/METReco/interface/PFMETCollection.h"
+#include "DataFormats/METReco/interface/MET.h"
+#include "DataFormats/METReco/interface/CaloMET.h"
+#include "DataFormats/METReco/interface/METCollection.h"
+#include "DataFormats/METReco/interface/CaloMETCollection.h"
+
+#include "DataFormats/METReco/interface/GenMET.h"
+#include "DataFormats/METReco/interface/GenMETFwd.h"
+
+#include "DataFormats/JetReco/interface/GenJet.h"
+#include "DataFormats/JetReco/interface/GenJetCollection.h"
+#include "DataFormats/HepMCCandidate/interface/GenParticle.h"
+#include "DataFormats/HepMCCandidate/interface/GenParticleFwd.h"
+#include "DataFormats/HcalRecHit/interface/HcalRecHitCollections.h"
+#include "DataFormats/JetReco/interface/JetID.h"
+#include "TFile.h"
+#include "TH1F.h"
+#include "TH2F.h"
+#include "TTree.h"
+#include "CLHEP/Vector/LorentzVector.h"
+
+#include "DataFormats/EgammaCandidates/interface/GsfElectron.h"
+#include "DataFormats/EgammaCandidates/interface/GsfElectronFwd.h"
+#include "DataFormats/GsfTrackReco/interface/GsfTrack.h"
+#include "DataFormats/MuonReco/interface/Muon.h"
+#include "DataFormats/MuonReco/interface/MuonSelectors.h"
+#include "DataFormats/VertexReco/interface/Vertex.h"
+#include "DataFormats/VertexReco/interface/VertexFwd.h"
+
+#include <string>
+
+#include <iostream>
+#include <fstream>
+
+#include "DataFormats/EgammaCandidates/interface/Photon.h"
+#include "DataFormats/EgammaCandidates/interface/PhotonFwd.h"
+
+#include "DataFormats/HcalDigi/interface/HcalDigiCollections.h"
+#include "DataFormats/HcalDetId/interface/HcalDetId.h"
+#include "CalibFormats/HcalObjects/interface/HcalCoderDb.h"
+#include "CalibFormats/HcalObjects/interface/HcalCalibrations.h"
+//#include "CalibFormats/HcalObjects/interface/HcalCalibrationWidths.h"
+#include "CalibFormats/HcalObjects/interface/HcalDbService.h"
+#include "CalibFormats/HcalObjects/interface/HcalDbRecord.h"
+//#include "CondFormats/HcalObjects/interface/HcalQIECoder.h"
+//#include "CondFormats/HcalObjects/interface/HcalPedestal.h"
+//#include "CondFormats/HcalObjects/interface/HcalPedestalWidth.h"
+//#include "CondFormats/HcalObjects/interface/HcalElectronicsMap.h"
+#include "FWCore/Framework/interface/ESHandle.h"
+
+//#include "DataFormats/HcalCalibObjects/interface/HBHERecTime.h"
+//#include "DataFormats/HcalCalibObjects/interface/HBHERecTimeCollection.h"
+
+using namespace std;
+using namespace edm;
+using namespace reco;  
+using namespace CLHEP;
+
+
+
+//
+// class declaration
+//
+
+class HOinPFAlgo : public edm::EDAnalyzer {
+   public:
+      explicit HOinPFAlgo(const edm::ParameterSet&);
+      ~HOinPFAlgo();
+
+      static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
+
+
+   private:
+      virtual void beginJob() ;
+      virtual void analyze(const edm::Event&, const edm::EventSetup&);
+      virtual void endJob() ;
+
+      virtual void beginRun(edm::Run const&, edm::EventSetup const&);
+      virtual void endRun(edm::Run const&, edm::EventSetup const&);
+      virtual void beginLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&);
+      virtual void endLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&);
+
+
+  // ----------member data ---------------------------
+  //edm::Service<TFileService> fs;
+
+  int Nevt;
+  bool reReco_;
+  bool isDigi_;
+  bool doCaloJets_;
+  bool doPFJets_;
+  edm::InputTag jetidLabel_;
+  edm::InputTag calojetLabel_;
+  edm::InputTag pfjetLabel_;
+  int tagHO_;
+  double jtPtThr_;
+
+  // TTree* T1;
+
+  //JRA jets_;
+};
+
+//
+// constants, enums and typedefs
+//
+
+//
+// static data member definitions
+//
+
+//
+// constructors and destructor
+//
+HOinPFAlgo::HOinPFAlgo(const edm::ParameterSet& pset)
+
+{
+  //now do what ever initialization is needed
+
+  reReco_       = pset.getUntrackedParameter<bool>("ReRECO", true);
+  isDigi_       = pset.getUntrackedParameter<bool>("OnlyDIGI", false);
+  doCaloJets_   = pset.getUntrackedParameter<bool>("doCaloJets", true);
+  doPFJets_     = pset.getUntrackedParameter<bool>("doPFJets", true);
+  jetidLabel_   = pset.getUntrackedParameter<InputTag>("JetIdTag");
+  calojetLabel_ = pset.getUntrackedParameter<InputTag>("CaloJetTag");
+  pfjetLabel_   = pset.getUntrackedParameter<InputTag>("PFJetTag");
+  tagHO_        = pset.getUntrackedParameter<int>("tagHO", 1);
+  jtPtThr_      = pset.getUntrackedParameter<double>("JetPtCut", 51.0);
+  
+  Nevt=0;
+
+}
+
+
+HOinPFAlgo::~HOinPFAlgo()
+{
+  // do anything here that needs to be done at desctruction time
+  // (e.g. close files, deallocate resources etc.)
+}
+
+
+//
+// member functions
+//
+
+// ------------ method called for each event  ------------
+void
+HOinPFAlgo::analyze(const edm::Event& iEvent, const edm::EventSetup& pset)
+{
+  Nevt++;
+  cout <<"\t HOinPFAlgo::analyze "<< Nevt<<" "<<iEvent.id().run()<<" "<<iEvent.id().event()<<endl;
+  //cout <<"\t HOinPFAlgo::analyze "<< Nevt<<" "<<iEvent.id().run()<<" "<<iEvent.id().event()<<" "<<tagHO_<<" "<<jtPtThr_<<endl;
+}
+
+
+// ------------ method called once each job just before starting event loop  ------------
+void 
+HOinPFAlgo::beginJob()
+{
+
+}
+
+// ------------ method called once each job just after ending the event loop  ------------
+void 
+HOinPFAlgo::endJob() 
+{
+  cout<<"End of HOinPFAlgo with event "<<Nevt<<endl;
+}
+
+// ------------ method called when starting to processes a run  ------------
+void 
+HOinPFAlgo::beginRun(edm::Run const&, edm::EventSetup const&)
+{
+}
+
+// ------------ method called when ending the processing of a run  ------------
+void 
+HOinPFAlgo::endRun(edm::Run const&, edm::EventSetup const&)
+{
+}
+
+// ------------ method called when starting to processes a luminosity block  ------------
+void 
+HOinPFAlgo::beginLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&)
+{
+}
+
+// ------------ method called when ending the processing of a luminosity block  ------------
+void 
+HOinPFAlgo::endLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&)
+{
+}
+
+// ------------ method fills 'descriptions' with the allowed parameters for the module  ------------
+void
+HOinPFAlgo::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
+  //The following says we do not know what parameters are allowed so do no validation
+  // Please change this to state exactly what you do use, even if it is no parameters
+  edm::ParameterSetDescription desc;
+  desc.setUnknown();
+  descriptions.addDefault(desc);
+}
+
+//define this as a plug-in
+DEFINE_FWK_MODULE(HOinPFAlgo);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
