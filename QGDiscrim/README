@@ -1,0 +1,20 @@
+//! Compile the hiForest
+cd HiForest/
+// For compilation of Tuple tree
+> root -l -b
+.L EventTree.cxx++
+.q
+
+>root -l -b
+gSystem->Load("EventTree_cxx.so");
+.L hiForest.cxx++
+.q
+
+
+//! QG discrimnant variables  from hiforest
+> root -l -b
+gSystem->Load("EventTree_cxx.so");
+gSystem->Load("hiForest_cxx.so");
+.L bookJetTree.C++
+.q
+
