@@ -1,0 +1,9 @@
+{
+  gSystem->Load("FWCore/Utilities/src/typelookup_cc.so");
+  gSystem->Load("CondFormats/JetMETObjects/src/Utilities_cc.so");
+  gSystem->Load("CondFormats/JetMETObjects/src/JetCorrectorParameters_cc.so");
+  gSystem->Load("CondFormats/JetMETObjects/src/SimpleJetCorrector_cc.so");
+  gSystem->Load("CondFormats/JetMETObjects/src/SimpleJetCorrectionUncertainty_cc.so");
+  gSystem->Load("CondFormats/JetMETObjects/src/JetCorrectionUncertainty_cc.so");
+  gSystem->Load("CondFormats/JetMETObjects/src/FactorizedJetCorrector_cc.so");
+}
