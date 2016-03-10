@@ -41,28 +41,53 @@ int GetCentBin(int /*hiBin*/);
 string GetCentTag(int /*hiBin*/);
 int GetPhiBin(float /*phi*/);
 int GetEtaBin(float /*eta*/);
+int GetEtaBinWide(float /*eta*/);
 int GetPtHatBin(float /*pt*/);
 int GetPtBin(float /*pt*/);
 int GetPtBinWide(float /*pt*/);
 double delphi(double /*phi1*/, double /*phi2*/);
 double GetXsecWt(float /*pthat*/);
 
-const int npthat=11;
+//const int npthat=11;
 //const int npthat=8;
-double pthatwt[npthat][4] ={
 
+const int npthat=5;
+double pthatwt[npthat][4] ={
   //!  pthat   effEv     effxec     wt  
-  {15,932778,0.49235    ,5.278319171e-07},
-  {30,903567,0.030482   ,3.373518510e-08},
-  {50,983531,0.0035721  ,3.631913992e-09},
-  {80,1820782,0.00042494,2.333832387e-10},
-  {120,1080554,5.873e-05,5.435174920e-11},
-  {170,836152,9.199e-06 ,1.100158823e-11},
-  {220,954396,2.2564e-06,2.364217790e-12},
-  {280,1083994,6.336e-07,5.84505080e-13},
-  {370,948240,1.0884e-07,1.147810683e-13},
-  {460,1558268,2.215e-08,1.421449971e-14},
-  {540,2597338,1.001e-08,3.85394585e-15}
+//  {15,932778,0.49235    ,5.278319171e-07},
+//  {30,903567,0.030482   ,3.373518510e-08},
+//  {50,983531,0.0035721  ,3.631913992e-09},
+//  {80,1820782,0.00042494,2.333832387e-10},
+//  {120,1080554,5.873e-05,5.435174920e-11},
+//  {170,836152,9.199e-06 ,1.100158823e-11},
+//  {220,954396,2.2564e-06,2.364217790e-12},
+//  {280,1083994,6.336e-07,5.84505080e-13},
+//  {370,948240,1.0884e-07,1.147810683e-13},
+//  {460,1558268,2.215e-08,1.421449971e-14},
+//  {540,2597338,1.001e-08,3.85394585e-15}
+
+
+
+  //! HIReco
+  // {15,932590  ,0.49235    ,5.27938322e-07},
+  // {30,901774  ,0.030482   ,3.38022609e-08},
+  // {50,902447  ,0.0035721  ,3.95823799e-09},
+  // {80,953730  ,0.00042494 ,4.45555870e-10},
+  // {120,960159 ,5.873e-05  ,6.116695256e-11},
+  // {170,817681 ,9.199e-06  ,1.125010854e-11},
+  // {220,951421 ,2.2564e-06 ,2.371610465e-12},
+  // {280,1321398,7.746e-07  ,5.861973461e-13},
+  // {370,948337 ,1.0884e-07 ,1.147693278e-13},
+  // {460,875592 ,2.215e-08  ,2.529717037e-14},
+  // {540,1342240,1.001e-08  ,7.457682680e-15}
+
+  //! HIReco test
+  {15,932590,0.49235    ,5.279383223e-07},
+  {30,234026,0.030482   ,1.3025048499e-07},
+  {50,903726,0.0035721  ,3.9526360866e-09},
+  {80,953649,0.00042494 ,4.4559371425e-10},
+  {120,1159609,7.096e-05,6.11930400686e-11}
+
 };
 
 const int ncen=1;
@@ -97,17 +122,31 @@ const double ptbins_wide[]={40,60,80,110,110,200,600};
 const int nbins_wide = sizeof(ptbins_wide)/sizeof(double) - 1;
 
 //double etabins[] = {-3.000, -2.400, -2.000, -1.3000, 0.000, 1.300, 2.000, 2.400, 3.000};
-double etabins[] ={-3.000,
-                   -2.500, -2.043, -1.740, -1.653, -1.566, -1.392,
-                   -1.218, -1.131, -0.957, -0.879, -0.783, -0.609,
-                   -0.522, -0.435, -0.348, -0.261, -0.087,
+//double etabins[] ={-3.000,
+//                   -2.500, -2.043, -1.740, -1.653, -1.566, -1.392,
+//                   -1.218, -1.131, -0.957, -0.879, -0.783, -0.609,
+//                   -0.522, -0.435, -0.348, -0.261, -0.087,
+//                   +0.000,
+//                   +0.087, +0.261, +0.348, +0.435, +0.522, +0.609,
+//                   +0.783, +0.879, +0.957, +1.131, +1.218, +1.392,
+//                   +1.566, +1.653, +1.740, +1.930, +2.043, +2.500,
+//                   +3.000
+//};
+//
+double etabins[] ={-3.139, -2.853,
+                   -2.500, -2.043, -1.740, -1.392,
+                   -1.131, -0.879, -0.609, -0.435, -0.261, -0.087,
                    +0.000,
-                   +0.087, +0.261, +0.348, +0.435, +0.522, +0.609,
-                   +0.783, +0.879, +0.957, +1.131, +1.218, +1.392,
-                   +1.566, +1.653, +1.740, +1.930, +2.043, +2.500,
-                   +3.000
+                   +0.087, +0.261, +0.435, +0.609,
+                   +0.879, +1.131, +1.392,
+                   +1.740, +2.043, +2.500, +2.853,
+                   +3.139
 };
 const int neta = sizeof(etabins)/sizeof(double) - 1;
+
+const double etabins_wide[] = {0.00, 0.50, 1.00, 1.40, 1.80, 2.00};
+const int neta_wide = sizeof(etabins_wide)/sizeof(double) - 1;
+
 
 const double phibins[] = {-3.141,-2.700,-2.100,-1.500,-0.900,-0.300, 
 			  0.300,0.900,1.500,2.100,2.700,3.141
@@ -148,11 +187,25 @@ int checkJEC_pp(const char *runalgo="ak4PF",
   else if( strcmp(runalgo,"ak4Calo") == 0){corrFileName="AK4Calo";nj=9;}
   else if( strcmp(runalgo,"ak5Calo") == 0){corrFileName="AK5Calo";nj=10;}
   else if( strcmp(runalgo,"ak6Calo") == 0){corrFileName="AK6Calo";nj=11;}
+  else if( strcmp(runalgo,"akVs1PF") == 0){corrFileName="AKVS1PF";nj=12;}
+  else if( strcmp(runalgo,"akVs2PF") == 0){corrFileName="AKVS2PF";nj=13;}
+  else if( strcmp(runalgo,"akVs3PF") == 0){corrFileName="AKVS3PF";nj=14;}
+  else if( strcmp(runalgo,"akVs4PF") == 0){corrFileName="AKVS4PF";nj=15;}
+  else if( strcmp(runalgo,"akVs5PF") == 0){corrFileName="AKVS5PF";nj=16;}
+  else if( strcmp(runalgo,"akVs6PF") == 0){corrFileName="AKVS6PF";nj=17;}
+  else if( strcmp(runalgo,"akVs1Calo") == 0){corrFileName="AKVS1Calo";nj=18;}
+  else if( strcmp(runalgo,"akVs2Calo") == 0){corrFileName="AKVS2Calo";nj=19;}
+  else if( strcmp(runalgo,"akVs3Calo") == 0){corrFileName="AKVS3Calo";nj=20;}
+  else if( strcmp(runalgo,"akVs4Calo") == 0){corrFileName="AKVS4Calo";nj=21;}
+  else if( strcmp(runalgo,"akVs5Calo") == 0){corrFileName="AKVS5Calo";nj=22;}
+  else if( strcmp(runalgo,"akVs6Calo") == 0){corrFileName="AKVS6Calo";nj=23;}
 
   std::string basedir ="";
   //std::string dirname ="JEC_HIReco_HcalRespCorrs_v4_00_mc/";
-  std::string dirname ="JEC_ppReco_HcalRespCorrs_v4_00_mc/";
-  std::string jecera  ="JEC_pp_PYTHIA_TuneCUETP8M1_5020GeV_757p1_HcalRespCorrs_v4_00";
+  std::string dirname ="JEC_HIReco_HcalRespCorrs_v4_00_mc_partial/";
+
+  std::string jecera  ="JEC_pp_PYTHIA_TuneCUETP8M1_5020GeV_HIReco";
+  //std::string jecera  ="JEC_pp_PYTHIA_TuneCUETP8M1_5020GeV_757p1_HcalRespCorrs_v4_00";
 
   //! Before running check all the txt files are available
   std::string L2Name = basedir+dirname+jecera+"_L2Relative_"+corrFileName+".txt";
@@ -180,13 +233,19 @@ int checkJEC_pp(const char *runalgo="ak4PF",
   FactorizedJetCorrector *_JEC_HI = new FactorizedJetCorrector(vpar_HI);//JR         
 
 
+  //! pp reco
+  //std::string inDir=Form("/mnt/hadoop/cms/store/user/abaty/mergedForests/PYTHIA_QCD_TuneCUETP8M1_cfi_GEN_SIM_5020GeV_ppSignal/Pythia8_Dijet%d_pp_TuneCUETP8M1_5020GeV_FOREST_758_PrivMC/",kpthat);
 
-  //std::string inDir=Form("/mnt/hadoop/cms/store/user/pawan/Pythia8_Dijet%d_pp_TuneCUETP8M1_Hydjet_MinBias_5020GeV_HiForest_PrivMC_TAGHiForestPbPbJECv9/",kpthat);
-  //std::string inDir=Form("/mnt/hadoop/cms/store/user/pawan/PYTHIA_QCD%d_TuneCUETP8M1_cfi_RECODEBUGpp_757p1_TAGSignalPP/",kpthat);
+  //! HIReco
+  std::string inDir="";
+  // if( kpthat==15 || kpthat==30){
+  //   inDir=Form("/mnt/hadoop/cms/store/user/velicanu/Merged/dgulhan-PYTHIA_QCD%d_TuneCUETP8M1_cfi_RECODEBUGHI_757p1_timeslew_HcalRespCorrs_v4_00_mc_FOREST-v28/0.root",kpthat);
+  // }else{
+  //   inDir=Form("/mnt/hadoop/cms/store/user/rbi/PYTHIA_QCD_TuneCUETP8M1_cfi_GEN_SIM_5020GeV_merged/QCD%d/0.root",kpthat);
+  // }
 
-  std::string inDir=Form("/mnt/hadoop/cms/store/user/abaty/mergedForests/PYTHIA_QCD_TuneCUETP8M1_cfi_GEN_SIM_5020GeV_ppSignal/Pythia8_Dijet%d_pp_TuneCUETP8M1_5020GeV_FOREST_758_PrivMC/",kpthat);
-  TFile *fin = new TFile((inDir+inname).c_str(),"r");
-
+  //TFile *fin = new TFile((inDir+inname).c_str(),"r");
+  TFile *fin = new TFile(inname.c_str(),"r");
   TFile *fout = new TFile(outfile.c_str(),"RECREATE");
   
   std::cout<<"\t"<<std::endl;
@@ -222,6 +281,8 @@ int checkJEC_pp(const char *runalgo="ak4PF",
   TH1D *hrescrpt_wide_genm_phi [ncen][nbins_wide][nphi], *hresjrpt_wide_genm_phi [ncen][nbins_wide][nphi],
     *hresrrpt_wide_genm_phi [ncen][nbins_wide][nphi], *hratio_wide_phi [ncen][nbins_wide][nphi];
 
+
+
   // TH1D *havjetpt_genm[ncen][nbins], *havrawpt_genm[ncen][nbins];
   // TProfile *hcorr_rawpt[ncen], *hcorr_genpt[ncen], *hcorr_recopt[ncen];
   // TProfile *hl3corr_rawpt[ncen], *hl3corr_genpt[ncen], *hl3corr_recopt[ncen];
@@ -247,6 +308,16 @@ int checkJEC_pp(const char *runalgo="ak4PF",
   //TH1D *hBin;
   TH1D *hpthat[ncen];
 
+
+  //! Background
+  TH1D *havbkgpt   [ncen][nbins];
+  TH1D *havbkgpt_ch[ncen][nbins];
+  TH1D *havbkgpt_nh[ncen][nbins];
+  TH1D *havbkgpt_ph[ncen][nbins];
+  TH1D *havbkgpt_mu[ncen][nbins];
+  TH1D *havbkgpt_el[ncen][nbins];
+  TH1D *havbkgpt_raw[ncen][nbins];
+  TH1D *havbkgpt_eta[ncen][nbins][neta_wide];
 
   fout->mkdir(Form("%sJetAnalyzer",runalgo));
   fout->cd(Form("%sJetAnalyzer",runalgo));
@@ -356,17 +427,44 @@ int checkJEC_pp(const char *runalgo="ak4PF",
       // 	hratio_eta[ic][ip][ie]->Sumw2();
       // }
       
-    //   for(int ij=0;ij<nphi;ij++){      
-    // 	hrescrpt_genm_phi [ic][ip][ij]= new TH1D(Form("hrescrpt_genm_phi%d_%d_%d_%d",nj,ic,ip,ij),Form("(Reco/Gen) jet p_{T} %s %d %d",runalgo,ip,ij),rbins,rbinl,rbinh);
-    // 	hrescrpt_genm_phi [ic][ip][ij]->Sumw2();
-    // 	hresrrpt_genm_phi [ic][ip][ij]= new TH1D(Form("hresrrpt_genm_phi%d_%d_%d_%d",nj,ic,ip,ij),Form("(Raw/Gen) jet p_{T} %s %d %d",runalgo,ip,ij),rbins,rbinl,rbinh);
-    // 	hresrrpt_genm_phi [ic][ip][ij]->Sumw2();
-    // 	hratio_phi[ic][ip][ij]= new TH1D(Form("hratio_phi%d_%d_%d_%d",nj,ic,ip,ij),Form("(Reco/Raw) jet p_{T} %s %d %d",runalgo,ip,ij),rbins,rbinl,rbinh);
-    // 	hratio_phi[ic][ip][ij]->Sumw2();
-    //   }
+      //   for(int ij=0;ij<nphi;ij++){      
+      // 	hrescrpt_genm_phi [ic][ip][ij]= new TH1D(Form("hrescrpt_genm_phi%d_%d_%d_%d",nj,ic,ip,ij),Form("(Reco/Gen) jet p_{T} %s %d %d",runalgo,ip,ij),rbins,rbinl,rbinh);
+      // 	hrescrpt_genm_phi [ic][ip][ij]->Sumw2();
+      // 	hresrrpt_genm_phi [ic][ip][ij]= new TH1D(Form("hresrrpt_genm_phi%d_%d_%d_%d",nj,ic,ip,ij),Form("(Raw/Gen) jet p_{T} %s %d %d",runalgo,ip,ij),rbins,rbinl,rbinh);
+      // 	hresrrpt_genm_phi [ic][ip][ij]->Sumw2();
+      // 	hratio_phi[ic][ip][ij]= new TH1D(Form("hratio_phi%d_%d_%d_%d",nj,ic,ip,ij),Form("(Reco/Raw) jet p_{T} %s %d %d",runalgo,ip,ij),rbins,rbinl,rbinh);
+      // 	hratio_phi[ic][ip][ij]->Sumw2();
+      //   }
 
+      havbkgpt[ic][ip]= new TH1D(Form("havbkgpt_%d_%d_%d",nj,ic,ip),
+				 Form("(<bkg>) jet p_{T} %s %s %0.0f < p_{T}^{REF} < %0.0f",runalgo,centbin[ic],ptbins[ip],ptbins[ip+1]),150,0.,50.);
+      havbkgpt[ic][ip]->Sumw2();
+      havbkgpt_ch[ic][ip]= new TH1D(Form("havbkgpt_ch_%d_%d_%d",nj,ic,ip),
+				    Form("(<bkg>) charged jet p_{T} %s %s %0.0f < p_{T}^{REF} < %0.0f",runalgo,centbin[ic],ptbins[ip],ptbins[ip+1]),150,0.,50.);
+      havbkgpt_ch[ic][ip]->Sumw2();
+      havbkgpt_nh[ic][ip]= new TH1D(Form("havbkgpt_nh_%d_%d_%d",nj,ic,ip),
+				    Form("(<bkg>) neutral jet p_{T} %s %s %0.0f < p_{T}^{REF} < %0.0f",runalgo,centbin[ic],ptbins[ip],ptbins[ip+1]),150,0.,50.);
+      havbkgpt_nh[ic][ip]->Sumw2();
+      havbkgpt_ph[ic][ip]= new TH1D(Form("havbkgpt_ph_%d_%d_%d",nj,ic,ip),
+				    Form("(<bkg>) photon jet p_{T} %s %s %0.0f < p_{T}^{REF} < %0.0f",runalgo,centbin[ic],ptbins[ip],ptbins[ip+1]),150,0.,50.);
+      havbkgpt_ph[ic][ip]->Sumw2();
+      havbkgpt_mu[ic][ip]= new TH1D(Form("havbkgpt_mu_%d_%d_%d",nj,ic,ip),
+				    Form("(<bkg>) muon jet p_{T} %s %s %0.0f < p_{T}^{REF} < %0.0f",runalgo,centbin[ic],ptbins[ip],ptbins[ip+1]),150,0.,50.);
+      havbkgpt_mu[ic][ip]->Sumw2();
+      havbkgpt_el[ic][ip]= new TH1D(Form("havbkgpt_el_%d_%d_%d",nj,ic,ip),
+				    Form("(<bkg>) elelctron jet p_{T} %s %s %0.0f < p_{T}^{REF} < %0.0f",runalgo,centbin[ic],ptbins[ip],ptbins[ip+1]),150,0.,50.);
+      havbkgpt_el[ic][ip]->Sumw2();
+      havbkgpt_raw[ic][ip]= new TH1D(Form("havbkgpt_raw_%d_%d_%d",nj,ic,ip),
+				     Form("(<bkg>) raw jet p_{T} %s %s %0.0f < p_{T}^{REF} < %0.0f",runalgo,centbin[ic],ptbins[ip],ptbins[ip+1]),150,0.,50.);
+      havbkgpt_raw[ic][ip]->Sumw2();
+
+      for(int ie=0; ie<neta_wide; ie++){
+	havbkgpt_eta[ic][ip][ie]= new TH1D(Form("havbkgpt_eta_%d_%d_%d",ic,ip,ie),
+					   Form("(<bkg>) jet p_{T} %sPF %s %0.0f < p_{T}^{REF} < %0.0f",
+						runalgo,centbin[ic],ptbins[ip],ptbins[ip+1]),150,0.,50.);
+	havbkgpt_eta[ic][ip][ie]->Sumw2();
+      }
     }
-
     
     //! coarse pt bin
     for(int ip=0;ip<nbins_wide;ip++){
@@ -458,6 +556,13 @@ int checkJEC_pp(const char *runalgo="ak4PF",
   float refeta[1000];
   float refphi[1000];
   float refdrjt[1000];
+  float trackSum[1000];
+  float chargedSum[1000];
+  float neutralSum[1000];
+  float photonSum[1000];
+  float eleSum[1000];
+  float muonSum[1000];
+
   //float refparton_pt[1000];
   int refparton_flavor[1000];
   int subid[1000];
@@ -468,6 +573,12 @@ int checkJEC_pp(const char *runalgo="ak4PF",
   tr_in->SetBranchAddress("jtpt",jtpt);
   tr_in->SetBranchAddress("jteta",jteta);
   tr_in->SetBranchAddress("jtphi",jtphi);
+  tr_in->SetBranchAddress("trackSum",trackSum);
+  tr_in->SetBranchAddress("chargedSum",chargedSum);
+  tr_in->SetBranchAddress("neutralSum",neutralSum);
+  tr_in->SetBranchAddress("photonSum",photonSum);
+  tr_in->SetBranchAddress("eSum",eleSum);
+  tr_in->SetBranchAddress("muSum",muonSum);
   tr_in->SetBranchAddress("refpt",refpt);
   tr_in->SetBranchAddress("refphi",refphi);
   tr_in->SetBranchAddress("refeta",refeta);
@@ -485,6 +596,12 @@ int checkJEC_pp(const char *runalgo="ak4PF",
   tr_in->SetBranchStatus("jtpt" ,1);
   tr_in->SetBranchStatus("jteta",1);
   tr_in->SetBranchStatus("jtphi",1);
+  tr_in->SetBranchStatus("trackSum",1);
+  tr_in->SetBranchStatus("chargedSum",1);
+  tr_in->SetBranchStatus("neutralSum",1);
+  tr_in->SetBranchStatus("photonSum",1);
+  tr_in->SetBranchStatus("eSum",1);
+  tr_in->SetBranchStatus("muSum",1);
   tr_in->SetBranchStatus("refpt",1);
   tr_in->SetBranchStatus("refphi",1);
   tr_in->SetBranchStatus("refeta",1);
@@ -526,6 +643,8 @@ int checkJEC_pp(const char *runalgo="ak4PF",
     hpthat[iCent]->Fill(pthat,wxs*wcen*wvz);
     nevt[iCent]++;
 
+    if( pthat < 15. )continue;
+
     //! Gen matched jets loop
     for(int igen=0; igen<ngen; igen++){
 
@@ -553,7 +672,6 @@ int checkJEC_pp(const char *runalgo="ak4PF",
       _JEC_HI->setJetPt (rawpt[gj]);
       float corrfac = _JEC_HI->getCorrection();
       float corrpt  = rawpt[gj]*corrfac;
-
 	
       float recopt  = jtpt[gj];  
       float recoeta = jteta[gj];
@@ -576,15 +694,16 @@ int checkJEC_pp(const char *runalgo="ak4PF",
       // hrawpt_genpt[iCent]->Fill(refpt[gj],rawpt[gj],wxs*wcen*wvz);
       // hrecopt_genpt[iCent]->Fill(refpt[gj],recopt,wxs*wcen*wvz);
 	
-      double resp_corr =  recopt    / refpt[gj];
+      double resp_corr        =  recopt    / refpt[gj];
       double resp_corr_jetmet =  corrpt    / refpt[gj];
-      double resp_raw  =  rawpt[gj] / refpt[gj];
-      double ratio     =  recopt    / rawpt[gj];
+      double resp_raw         =  rawpt[gj] / refpt[gj];
+      double ratio            =  recopt    / rawpt[gj];
 
       int iphi = GetPhiBin(refphi[gj]);
       int ieta = GetEtaBin(refeta[gj]);
       int ipt  = GetPtBin (refpt[gj]);
       int ipt_wide = GetPtBinWide (refpt[gj]);
+      int ieta_wide = GetEtaBinWide(fabs(jteta[gj]));
 
       hgenpt_genm[iCent]->Fill(refpt[gj],wxs*wcen*wvz);
       hrecopt_genm[iCent]->Fill(recopt,wxs*wcen*wvz);
@@ -597,11 +716,22 @@ int checkJEC_pp(const char *runalgo="ak4PF",
       hgeneta[iCent]->Fill(refeta[gj],wxs*wcen*wvz);
       hgenphi[iCent]->Fill(refphi[gj],wxs*wcen*wvz);
 
+      float sumPF = (chargedSum[gj] + neutralSum[gj] + photonSum[gj] + muonSum[gj] + eleSum[gj]);
+      float bkgd  = sumPF - rawpt[gj];
 
       //! Response in pt and eta
       if( ipt>=0 ){
 	// havjetpt_genm[iCent] [ipt]->Fill(recopt,wxs*wcen*wvz);
 	// havrawpt_genm[iCent] [ipt]->Fill(rawpt[gj],wxs*wcen*wvz);
+
+	havbkgpt    [iCent][ipt]->Fill(bkgd          , wxs*wcen*wvz);
+	havbkgpt_ch [iCent][ipt]->Fill(chargedSum[gj], wxs*wcen*wvz);
+	havbkgpt_nh [iCent][ipt]->Fill(neutralSum[gj], wxs*wcen*wvz);
+	havbkgpt_ph [iCent][ipt]->Fill(photonSum[gj] , wxs*wcen*wvz);
+	havbkgpt_mu [iCent][ipt]->Fill(muonSum[gj]   , wxs*wcen*wvz);
+	havbkgpt_el [iCent][ipt]->Fill(eleSum[gj]    , wxs*wcen*wvz);
+	havbkgpt_raw[iCent][ipt]->Fill(rawpt[gj]     , wxs*wcen*wvz);
+
 
 	hrescrpt_genm [iCent][ipt]->Fill(resp_corr,wxs*wcen*wvz);
 	hresjrpt_genm [iCent][ipt]->Fill(resp_corr_jetmet,wxs*wcen*wvz);
@@ -621,6 +751,8 @@ int checkJEC_pp(const char *runalgo="ak4PF",
 	  // hrescrpt_genm_eta [iCent][ipt][ieta]->Fill(resp_corr,wxs*wcen*wvz);
 	  // hresrrpt_genm_eta [iCent][ipt][ieta]->Fill(resp_raw ,wxs*wcen*wvz);
 	  // hratio_eta        [iCent][ipt][ieta]->Fill(ratio    ,wxs*wcen*wvz);
+	  if(ieta_wide >= 0 && ieta_wide < neta_wide)havbkgpt_eta[iCent][ipt][ieta_wide]->Fill(bkgd, wxs*wvz*wcen);
+
 	  if( ipt_wide>=0 ){
 	    hrescrpt_wide_genm_eta [iCent][ipt_wide][ieta]->Fill(resp_corr,wxs*wcen*wvz);
 	    hresjrpt_wide_genm_eta [iCent][ipt_wide][ieta]->Fill(resp_corr_jetmet,wxs*wcen*wvz);
@@ -659,7 +791,6 @@ int checkJEC_pp(const char *runalgo="ak4PF",
   delete parHI_l3;
   delete _JEC_HI;
 
-
   std::cout<<std::endl;
   std::cout<<runalgo << std::endl;
   for(int ic=0; ic<ncen; ic++){
@@ -689,6 +820,15 @@ int GetEtaBin(float eta)
   if(eta<etabins[0] || eta>etabins[neta])return -1;
   for(int ix=0;ix<neta;ix++){
     if(eta>=etabins[ix] && eta<etabins[ix+1]){
+      return ix;
+    }
+  }
+  return -1;
+}
+int GetEtaBinWide(float eta)
+{
+  for(int ix=0;ix<neta_wide;ix++){
+    if(eta>=etabins_wide[ix] && eta<etabins_wide[ix+1]){
       return ix;
     }
   }
